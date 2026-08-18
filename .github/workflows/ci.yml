@@ -37,6 +37,10 @@ jobs:
         working-directory: ./backend
         run: npm test
 
+      - name: Build Backend Application
+        working-directory: ./backend
+        run: npm run build
+
   frontend-checks:
     name: Frontend Validation (TypeCheck & Build)
     runs-on: ubuntu-latest

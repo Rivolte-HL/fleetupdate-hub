@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "test": "node --test dist/tests/*.test.js"
+    "test": "tsx --test src/tests/*.test.ts",
+    "test:dist": "node --test dist/tests/*.test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.18.0",
