@@ -2,11 +2,17 @@
   "name": "fleetupdate-hub-backend",
   "version": "1.0.0",
   "description": "Enterprise-grade update orchestrator backend for heterogeneous infrastructure",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rivolte-HL/fleetupdate-hub.git"
+  },
   "main": "dist/server.js",
   "scripts": {
     "build": "tsc && prisma generate",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "test": "node --test dist/tests/*.test.js"

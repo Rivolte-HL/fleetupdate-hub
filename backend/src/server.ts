@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import { URL } from 'url';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { UserRole } from '@prisma/client';
 import { config } from './config/index.js';
 import { ServiceRegistry } from './core/service.registry.js';
@@ -201,7 +202,8 @@ app.use(errorHandler);
 async function initDatabaseDefaults(): Promise<void> {
   try {
     const adminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@fleetupdate.local';
-    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'FleetAdminChangeMeNow123!';
+    const isCustomPassword = Boolean(process.env.INITIAL_ADMIN_PASSWORD);
+    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || crypto.randomBytes(16).toString('hex');
 
     const count = await prisma.user.count();
     if (count === 0) {
@@ -225,6 +227,11 @@ async function initDatabaseDefaults(): Promise<void> {
         }
       });
       console.log(`[Database] Initial administrator created: ${adminEmail}`);
+      console.log(`[Database] Initial admin password: ${adminPassword}`);
+      if (!isCustomPassword) {
+        console.log('[Database] 🔒 (A cryptographically secure random password was generated automatically)');
+      }
+      console.log('[Database] ⚠️  Please change this password upon first login and enable 2FA TOTP!');
     }
   } catch (err) {
     console.warn('[Database] Initial auto-seed skipped or deferred:', err);

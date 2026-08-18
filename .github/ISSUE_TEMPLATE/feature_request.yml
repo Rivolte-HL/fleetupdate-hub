@@ -1,0 +1,45 @@
+name: ✨ Proposition de Fonctionnalité (Feature Request)
+description: Proposez une nouvelle idée ou une intégration pour FleetUpdate-Hub.
+title: "[FEAT] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci pour votre suggestion afin d'améliorer la plateforme d'orchestration !
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Catégorie de la Proposition
+      options:
+        - Nouvel Adaptateur de Service (ex: TrueNAS, Mikrotik, Kubernetes)
+        - Amélioration de la Résilience / Rollback
+        - Tableau de bord Frontend & UX
+        - Notifications & Webhooks
+        - Authentification & RBAC
+        - Performance & Scalabilité
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Quel besoin ou problème cette fonctionnalité résout-elle ?
+      description: Une description claire du besoin opérationnel.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution ou Comportement Souhaité
+      description: Comment imaginez-vous le fonctionnement de cette fonctionnalité ?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Solutions alternatives envisagées
+      description: Avez-vous considéré d'autres approches ou contournements ?

@@ -28,7 +28,7 @@ test('AES-256-GCM EncryptionService Tests', async (t) => {
     const creds = {
       apiKey: 'opn_api_key_89234',
       apiSecret: 'opn_secret_99882211',
-      privateKey: '-----BEGIN OPENSSH PRIVATE KEY-----\nMIIBO...\n-----END OPENSSH PRIVATE KEY-----',
+      privateKey: '-----BEGIN MOCK PRIVATE KEY (TEST ONLY)-----\nMOCK_KEY_FOR_TESTING_ONLY\n-----END MOCK PRIVATE KEY-----',
       options: { port: 22, allowSelfSigned: true }
     };
 

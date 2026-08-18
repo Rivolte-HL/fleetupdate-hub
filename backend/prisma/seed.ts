@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole, HostType } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -7,7 +8,8 @@ async function main() {
   console.log('🌱 Starting Database Seeding for FleetUpdate-Hub...');
 
   const adminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@fleetupdate.local';
-  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'FleetAdminChangeMeNow123!';
+  const isCustomPassword = Boolean(process.env.INITIAL_ADMIN_PASSWORD);
+  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || crypto.randomBytes(16).toString('hex');
 
   const existingAdmin = await prisma.user.findUnique({
     where: { email: adminEmail }
@@ -27,6 +29,9 @@ async function main() {
 
     console.log(`✅ Default Administrator created: ${admin.email}`);
     console.log(`🔑 Initial Password: ${adminPassword}`);
+    if (!isCustomPassword) {
+      console.log('🔒 (A cryptographically secure random password was generated automatically)');
+    }
     console.log('⚠️  Please change this password upon first login and enable 2FA TOTP!');
   } else {
     console.log(`ℹ️ Administrator ${adminEmail} already exists.`);

@@ -1,13 +1,30 @@
 # 🛡️ FleetUpdate-Hub
 
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Security: Zero-Trust](https://img.shields.io/badge/Security-Zero--Trust%20AES--256--GCM-green.svg)](docs/SECURITY_ZERO_TRUST.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose%20v2-2496ED.svg)](docker-compose.yml)
+[![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](CONTRIBUTING.md)
+
 **Système centralisé d'orchestration et de sécurisation des mises à jour pour infrastructures hétérogènes.**
 
 FleetUpdate-Hub unifie la détection, la validation, le déploiement et le contrôle post-intervention pour :
 - **Hyperviseurs Proxmox VE** (API Tokens, Snapshots QEMU/LXC, Backups vzdump protégés)
+- **Proxmox Backup Server** (API Tokens, gestion et intégrité des datastores)
 - **Pare-feux & Routeurs OPNsense** (API REST MVC, firmware upgrade, contrôle des reboots)
 - **Démons Docker Multi-Hôtes** (Sockets TLS/SSH, hashs SHA256, étiquettes OCI, release notes GitHub, rollback 60s)
 - **Serveurs Linux Agentless SSH** (APT, DNF, Pacman, détection `/var/run/reboot-required`)
 - **Domotique Home Assistant** (Long-Lived Tokens, entités `update.*`, sauvegarde Supervisor intégrée)
+
+---
+
+## 📚 Documentation Technique
+
+* 🏛️ **[Architecture Complète & Spécifications](docs/ARCHITECTURE.md)** : Spécifications modulaires, pattern Adapter, séquence d'orchestration.
+* 🔒 **[Sécurité Zero-Trust & Chiffrement](docs/SECURITY_ZERO_TRUST.md)** : Coffre AES-256-GCM, isolation réseau et modèle RBAC.
+* 🛡️ **[Politique de Sécurité](SECURITY.md)** : Signalement de vulnérabilités et matrice des versions supportées.
+* 🤝 **[Guide de Contribution](CONTRIBUTING.md)** : Normes de développement, conventions de commit et tests.
+* 📜 **[Journal des Modifications (Changelog)](CHANGELOG.md)** : Historique des versions (Keep a Changelog / SemVer).
 
 ---
 
@@ -20,7 +37,7 @@ FleetUpdate-Hub unifie la détection, la validation, le déploiement et le contr
    - Réseau `internal-net` non routable vers l'extérieur pour la base de données PostgreSQL.
    - Réseau `mgmt-net` réservé aux flux d'administration vers les équipements cibles.
 3. **Authentification & Contrôle d'Accès** :
-   - JWT sécurisé transmis via cookie `HttpOnly` avec protection CSRF et support 2FA **TOTP** (Google Authenticator, FreeOTP).
+   - JWT sécurisé transmis via cookie `HttpOnly` avec protection CSRF et support 2FA **TOTP** (Google Authenticator, FreeOTP, Aegis).
    - Contrôle d'accès basé sur les rôles (**RBAC**) : `ADMIN`, `OPERATOR`, `VIEWER`.
 4. **Journaux d'Audit Immuables** :
    - Traçabilité complète de chaque action administrative et déclenchement de tâche dans la table `audit_logs`.
@@ -35,31 +52,34 @@ FleetUpdate-Hub unifie la détection, la validation, le déploiement et le contr
 > **⚠️ Règle d'Or Anti-Circularité :**
 > FleetUpdate-Hub ne doit **jamais** gérer sa propre mise à jour ou celle de son propre hôte physique. Déployez FleetUpdate-Hub sur une VM / conteneur dédié distinct.
 
-### 2. Lancement Instantané (Zéro Configuration)
-Clonez le dépôt et lancez directement la pile :
-```bash
-git clone https://github.com/Rivolte-HL/fleetupdate-hub.git
-cd fleetupdate-hub
-docker compose up -d
-```
-*Au premier démarrage, le système génère automatiquement une clé maîtresse **AES-256-GCM** et un secret JWT aléatoires et persistants dans un volume sécurisé.*
+### 2. Configuration Sécurisée Initiale
 
-### 3. (Optionnel) Personnalisation & Secrets Manuels
-Si vous préférez définir vos propres mots de passe et clés cryptographiques manuellement :
-- Copiez `.env.example` en `.env` et ajustez vos variables :
-  ```bash
-  cp .env.example .env
-  ```
-- Ou exécutez le générateur de secrets :
-  ```bash
-  ./scripts/generate-secrets.sh
-  ```
+1. Clonez le dépôt :
+   ```bash
+   git clone https://github.com/Rivolte-HL/fleetupdate-hub.git
+   cd fleetupdate-hub
+   ```
+
+2. Générez automatiquement des secrets cryptographiques uniques et votre fichier `.env` :
+   - Sur Linux / macOS :
+     ```bash
+     bash scripts/generate-secrets.sh
+     ```
+   - Sur Windows (PowerShell) :
+     ```powershell
+     pwsh scripts/generate-secrets.ps1
+     ```
+
+3. Démarrez la pile d'orchestration :
+   ```bash
+   docker compose up -d
+   ```
 
 L'interface d'administration est accessible sur : `http://<IP_DU_SERVEUR>:3000` (ou via votre Reverse Proxy HTTPS Nginx/Traefik).
 
-**Identifiants administrateur initiaux :**
-- Email : `admin@fleetupdate.local`
-- Mot de passe : `FleetAdminChangeMeNow123!` *(à modifier dès la première connexion avec activation du 2FA)*.
+Au premier démarrage, le compte administrateur initial est créé :
+- **Email :** `admin@fleetupdate.local` (ou la valeur spécifiée dans votre `.env`)
+- **Mot de passe :** Si non spécifié dans `.env`, un mot de passe aléatoire hautement sécurisé est généré automatiquement et affiché dans les logs du backend (`docker compose logs backend`).
 
 ---
 
@@ -119,3 +139,9 @@ Pour ajouter un nouveau type de service (ex: NAS TrueNAS, serveurs de jeux, rout
 3. Déclarez les champs requis dans `getMetadata()`.
 4. Enregistrez l'adaptateur dans `ServiceRegistry.getInstance().registerAdapter(...)`.
 Le frontend générera automatiquement les formulaires et cartes de suivi sans aucune modification de code supplémentaire !
+
+---
+
+## 📄 Licence
+
+Distribué sous la licence **Apache 2.0**. Consultez [`LICENSE`](LICENSE) pour plus d'informations.
