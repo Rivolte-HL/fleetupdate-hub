@@ -141,28 +141,49 @@ export const HostCard: React.FC<HostCardProps> = ({
           </div>
         </div>
 
-        {/* Version Information Grid */}
-        <div className="mt-4 pt-3.5 border-t border-slate-800/80 grid grid-cols-2 gap-2.5">
-          <div className="p-2.5 rounded-xl bg-slate-900/70 border border-slate-800/60">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Version Active</span>
-            <span className="text-xs font-semibold text-slate-200 truncate block mt-0.5 font-mono" title={host.currentVersion || "Non détectée"}>
-              {isOnline ? (host.currentVersion || "Non analysée") : "Injoignable"}
-            </span>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-slate-900/70 border border-slate-800/60">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Disponibilité</span>
-            <div className="mt-0.5 flex items-center gap-1.5">
-              {!isOnline ? (
-                <span className="text-xs font-medium text-rose-400">Hors ligne</span>
-              ) : hasUpdates ? (
-                <span className="text-xs font-bold text-amber-400 font-mono">
-                  {host.availableUpdatesCount} MàJ dispo
-                </span>
+        {/* Version Information Section */}
+        <div className="mt-4 pt-3.5 border-t border-slate-800/80 space-y-2.5">
+          <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800/80">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                {hasUpdates && isOnline ? "Évolution de Version" : "Version Système"}
+              </span>
+              {isOnline ? (
+                hasUpdates ? (
+                  <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/25 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    +{host.availableUpdatesCount} MàJ
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/25 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> À jour
+                  </span>
+                )
               ) : (
-                <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> À jour
+                <span className="text-[10px] font-bold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/25">
+                  Hors ligne
                 </span>
+              )}
+            </div>
+
+            <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs font-mono">
+              <span
+                className="font-semibold text-slate-200 truncate max-w-[180px] sm:max-w-[220px]"
+                title={host.currentVersion || "Non analysée"}
+              >
+                {isOnline ? (host.currentVersion || "Non analysée") : "Injoignable"}
+              </span>
+
+              {hasUpdates && isOnline && host.targetVersion && host.targetVersion !== host.currentVersion && (
+                <>
+                  <span className="text-amber-400 font-bold shrink-0">➔</span>
+                  <span
+                    className="font-bold text-amber-300 truncate max-w-[180px] sm:max-w-[220px]"
+                    title={host.targetVersion}
+                  >
+                    {host.targetVersion}
+                  </span>
+                </>
               )}
             </div>
           </div>

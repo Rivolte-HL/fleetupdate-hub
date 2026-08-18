@@ -103,11 +103,21 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
       u => u.entity_id.includes('operating_system') || u.entity_id.includes('core')
     );
 
+    const coreUpdate = nativeInstallable.find(u => u.entity_id === 'update.home_assistant_core_update');
+    const targetCoreVer = coreUpdate?.attributes?.latest_version;
+
+    let targetVersion = currentVersion;
+    if (nativeInstallable.length > 0) {
+      if (targetCoreVer) {
+        targetVersion = `Home Assistant ${targetCoreVer}${nativeInstallable.length > 1 ? ` (+${nativeInstallable.length - 1} composant(s))` : ''}`;
+      } else {
+        targetVersion = `${currentVersion} (+${nativeInstallable.length} composant(s))`;
+      }
+    }
+
     return {
       currentVersion,
-      targetVersion: nativeInstallable.length > 0
-        ? `${nativeInstallable.length} composant(s) natif(s) à installer`
-        : (externalSensors.length > 0 ? `${currentVersion} (À jour - ${externalSensors.length} conteneurs Docker externes)` : currentVersion),
+      targetVersion,
       hasUpdate: nativeInstallable.length > 0,
       requiresReboot,
       packageCount: nativeInstallable.length,

@@ -82,7 +82,10 @@ export const Sidebar: React.FC = () => {
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
-              <div className="font-bold text-slate-200 text-[11px]">Zero-Trust Shield</div>
+              <div className="font-bold text-slate-200 text-[11px] flex items-center gap-1.5">
+                <span>FleetUpdate-Hub</span>
+                <span className="text-[10px] font-mono text-cyan-400 font-bold">v1.2.0</span>
+              </div>
               <div className="text-[10px] text-slate-500">AES-256-GCM Actif</div>
             </div>
           </div>

@@ -181,8 +181,18 @@ export const HostDetailPage: React.FC = () => {
           <div className="space-y-2.5 text-xs">
             <div className="flex justify-between py-2 border-b border-slate-800/80">
               <span className="text-slate-400 font-medium">Version Actuelle :</span>
-              <span className="font-bold text-white font-mono">{host.currentVersion || "Non détectée"}</span>
+              <span className="font-bold text-white font-mono text-right max-w-[200px] truncate" title={host.currentVersion || "Non détectée"}>
+                {host.currentVersion || "Non détectée"}
+              </span>
             </div>
+            {hasUpdates && host.targetVersion && (
+              <div className="flex justify-between py-2 border-b border-slate-800/80 bg-amber-500/5 px-2 rounded-lg">
+                <span className="text-amber-400 font-medium flex items-center gap-1">Version Cible :</span>
+                <span className="font-bold text-amber-300 font-mono text-right max-w-[200px] truncate" title={host.targetVersion}>
+                  {host.targetVersion}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between py-2 border-b border-slate-800/80">
               <span className="text-slate-400 font-medium">Disponibilité MàJ :</span>
               <span className={`font-bold ${hasUpdates ? "text-amber-400" : "text-emerald-400"}`}>

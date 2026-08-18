@@ -21,8 +21,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpen2FAModal, onOpenPasswordMo
         <div>
           <div className="flex items-center gap-2">
             <h1 className="font-extrabold text-base tracking-tight text-white">FleetUpdate-Hub</h1>
-            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
-              Zero-Trust
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+              v1.2.0
+            </span>
+            <span className="hidden sm:inline-block text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+              Core
             </span>
           </div>
           <p className="text-[11px] text-slate-400 font-medium">Orchestration & Sécurité d'Infrastructure</p>

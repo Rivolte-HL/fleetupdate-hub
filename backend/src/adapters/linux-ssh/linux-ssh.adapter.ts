@@ -128,9 +128,14 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
   public async checkVersion(host: Host, credentials: TargetCredentials): Promise<VersionInfo> {
     const { client, pkgMgr } = this.getClient(host, credentials);
 
-    // 1. Get OS release
-    const osInfo = await client.executeCommand('cat /etc/os-release | grep PRETTY_NAME | cut -d "=" -f2 | tr -d \'"\'');
-    const currentVersion = osInfo.stdout.trim() || 'Linux OS';
+    // 1. Get OS release & Kernel version
+    const [osInfo, kernelInfo] = await Promise.all([
+      client.executeCommand('cat /etc/os-release | grep PRETTY_NAME | cut -d "=" -f2 | tr -d \'"\'').catch(() => ({ stdout: '' })),
+      client.executeCommand('uname -r').catch(() => ({ stdout: '' }))
+    ]);
+    const osPretty = osInfo.stdout.trim() || 'Linux OS';
+    const kernelRelease = kernelInfo.stdout.trim();
+    const currentVersion = kernelRelease ? `${osPretty} (${kernelRelease})` : osPretty;
 
     // 2. Check reboot required
     const rebootCheck = await client.executeCommand('[ -f /var/run/reboot-required ] || [ -f /run/reboot-required ] && echo "yes" || echo "no"');
