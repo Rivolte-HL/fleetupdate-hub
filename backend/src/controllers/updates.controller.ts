@@ -136,10 +136,13 @@ export class UpdatesController {
         },
         (step, log) => {
           broadcastPipelineUpdate({
-            taskId: task.id,
-            hostId: host.id,
-            step,
-            log
+            type: 'PIPELINE_UPDATE',
+            payload: {
+              taskId: task.id,
+              hostId: host.id,
+              step,
+              log
+            }
           });
         }
       ).catch(err => {

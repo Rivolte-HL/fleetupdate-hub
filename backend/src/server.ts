@@ -164,7 +164,7 @@ app.use(cors({
         if (allowed === origin) return callback(null, true);
         if (allowed.startsWith('*.')) {
           const rootDomain = allowed.slice(2);
-          if (host.endsWith(rootDomain)) return callback(null, true);
+          if (host === rootDomain || host.endsWith('.' + rootDomain)) return callback(null, true);
         }
         try {
           const allowedUrl = new URL(allowed);

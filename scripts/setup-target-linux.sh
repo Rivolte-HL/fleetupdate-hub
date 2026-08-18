@@ -35,9 +35,13 @@ SUDOERS_FILE="/etc/sudoers.d/fleetupdate"
 cat << 'EOF' > "$SUDOERS_FILE"
 # FleetUpdate-Hub least-privilege automation commands
 fleetupdate ALL=(ALL) NOPASSWD: \
+    /bin/tar, /usr/bin/tar, \
+    /usr/bin/docker, \
     /usr/bin/apt, /usr/bin/apt-get, /usr/bin/needrestart, \
     /usr/bin/dnf, /usr/bin/yum, /usr/bin/needs-restarting, \
     /usr/bin/pacman, /usr/bin/checkupdates, \
+    /sbin/apk, /usr/bin/apk, \
+    /usr/bin/zypper, \
     /sbin/reboot, /usr/sbin/reboot, /bin/systemctl reboot
 EOF
 

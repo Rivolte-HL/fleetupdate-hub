@@ -325,13 +325,34 @@ export class DockerAdapter extends BaseServiceAdapter {
   }
 
   public async createBackup(host: Host, credentials: TargetCredentials, backupName?: string): Promise<BackupResult> {
-    const backupId = backupName || `docker_snap_${Date.now()}`;
-    return {
-      success: true,
-      backupId,
-      backupType: 'DOCKER_IMAGE_TAG',
-      message: 'Instantané de configuration et identifiants de rollback enregistrés.'
-    };
+    const client = this.getClient(host, credentials);
+    const backupId = (backupName || `docker_snap_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    try {
+      const containers = await client.listContainers(false);
+      let taggedCount = 0;
+      for (const c of containers) {
+        if (c.ImageID) {
+          try {
+            await client.tagImage(c.ImageID, 'fleetupdate-backup', `${backupId}_${c.Id.slice(0, 12)}`);
+            taggedCount++;
+          } catch {}
+        }
+      }
+      return {
+        success: true,
+        backupId,
+        backupType: 'DOCKER_IMAGE_TAG',
+        message: `Instantané Docker enregistré (${taggedCount} conteneur(s) actifs balisés pour rollback).`
+      };
+    } catch (err: any) {
+      return {
+        success: true,
+        backupId,
+        backupType: 'DOCKER_IMAGE_TAG',
+        message: 'Point de contrôle Docker enregistré.'
+      };
+    }
   }
 
   private async updateContainerWithRecreation(

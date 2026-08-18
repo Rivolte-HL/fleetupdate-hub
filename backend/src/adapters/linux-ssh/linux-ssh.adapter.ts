@@ -208,19 +208,23 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
 
     // Create /etc backup archive
     try {
-      await client.executeCommand(`sudo tar -czf /tmp/${snapId}_etc.tar.gz /etc 2>/dev/null || true`);
-      return {
-        success: true,
-        backupId: snapId,
-        backupType: 'ETC_ARCHIVE',
-        message: 'Sauvegarde de la configuration /etc archivée.'
-      };
+      const tarRes = await client.executeCommand(`sudo tar -czf /tmp/${snapId}_etc.tar.gz /etc`);
+      if (tarRes.code === 0) {
+        return {
+          success: true,
+          backupId: snapId,
+          backupType: 'ETC_ARCHIVE',
+          message: 'Sauvegarde de la configuration /etc archivée avec succès.'
+        };
+      }
+      throw new Error(`tar a échoué (Code ${tarRes.code}): ${tarRes.stderr || tarRes.stdout}`);
     } catch (e: any) {
+      console.warn(`[LinuxSshAdapter] tar /etc archive notice: ${e.message}`);
       return {
         success: true,
         backupId: snapId,
         backupType: 'GENERIC_SNAPSHOT',
-        message: 'Point de contrôle enregistré.'
+        message: `Point de contrôle enregistré (${e.message}).`
       };
     }
   }
@@ -356,16 +360,29 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
 
     onProgress?.('ROLLBACK', `Restauration de la configuration /etc depuis ${safeBackupId}...`);
     try {
-      await client.executeCommand(`sudo tar -xzf /tmp/${safeBackupId}_etc.tar.gz -C / 2>/dev/null || true`);
-    } catch (e) {
-      // ignore
+      const res = await client.executeCommand(`[ -f /tmp/${safeBackupId}_etc.tar.gz ] && sudo tar -xzf /tmp/${safeBackupId}_etc.tar.gz -C /`);
+      if (res.code !== 0) {
+        return {
+          success: false,
+          restoredVersion: 'Échec de restauration',
+          logs: [`Erreur lors de l'extraction de l'archive ${safeBackupId}: ${res.stderr || res.stdout}`],
+          message: `Échec du rollback Linux (Code ${res.code}): ${res.stderr || res.stdout}`
+        };
+      }
+    } catch (e: any) {
+      return {
+        success: false,
+        restoredVersion: 'Échec de restauration',
+        logs: [`Exception rollback: ${e.message}`],
+        message: `Échec de communication lors du rollback Linux: ${e.message}`
+      };
     }
 
     return {
       success: true,
       restoredVersion: 'Configuration /etc restaurée',
-      logs: [`Archive ${safeBackupId} appliquée.`],
-      message: 'Rollback Linux terminé.'
+      logs: [`Archive ${safeBackupId} appliquée avec succès.`],
+      message: 'Rollback Linux terminé avec succès.'
     };
   }
 }

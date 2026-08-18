@@ -269,17 +269,19 @@ export class ProxmoxAdapter extends BaseServiceAdapter {
 
     // 1. If SSH credentials provided, perform real physical dist-upgrade!
     if (credentials.privateKey || credentials.password) {
-      onProgress?.("UPDATING", `Connexion SSH à Proxmox VE (${host.endpointUrl}) pour l'installation physique des paquets...`);
+      onProgress?.("UPDATING", `Connexion SSH à Proxmox VE pour l'installation physique des paquets...`);
       
-      let hostAddress = host.endpointUrl;
-      try {
-        const u = new URL(host.endpointUrl.startsWith("http") ? host.endpointUrl : `https://${host.endpointUrl}`);
-        hostAddress = u.hostname;
-      } catch {
-        hostAddress = host.endpointUrl.replace(/^https?:\/\//, "").split(":")[0].replace(/\/.*$/, "");
+      const meta = (host.metadata as any) || {};
+      let hostAddress = meta.sshHost || credentials.sshHost;
+      if (!hostAddress) {
+        try {
+          const u = new URL(host.endpointUrl.startsWith("http") ? host.endpointUrl : `https://${host.endpointUrl}`);
+          hostAddress = u.hostname;
+        } catch {
+          hostAddress = host.endpointUrl.replace(/^https?:\/\//, "").split(":")[0].replace(/\/.*$/, "");
+        }
       }
 
-      const meta = (host.metadata as any) || {};
       const sshPort = parseInt(meta.sshPort || credentials.sshPort || (host.port && host.port !== 8006 ? host.port : 22), 10);
       const ssh = new SshClient({
         host: hostAddress,

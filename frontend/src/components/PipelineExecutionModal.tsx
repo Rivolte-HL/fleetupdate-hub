@@ -59,8 +59,9 @@ export const PipelineExecutionModal: React.FC<PipelineExecutionModalProps> = ({ 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'PIPELINE_UPDATE' && data.payload?.taskId === taskId) {
-            const { step, log } = data.payload;
+          const payload = data.type === 'PIPELINE_UPDATE' && data.payload ? data.payload : (data.taskId ? data : null);
+          if (payload && payload.taskId === taskId) {
+            const { step, log } = payload;
             setTask((prev) => {
               if (!prev) return prev;
               const newLogs = log ? [...(prev.logs || []), log] : prev.logs;

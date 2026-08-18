@@ -100,10 +100,30 @@ export class DockerClient {
         res.on('data', (chunk) => { rawData += chunk; });
         res.on('end', () => {
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            if (!rawData) {
+              return resolve({} as T);
+            }
             try {
-              resolve(rawData ? JSON.parse(rawData) : {} as T);
+              return resolve(JSON.parse(rawData));
             } catch (e) {
-              resolve(rawData as any);
+              // Gérer les flux de streaming NDJSON (Newline Delimited JSON, ex: pullImage)
+              const lines = rawData.trim().split('\n').filter(l => l.trim().length > 0);
+              const parsedLines: any[] = [];
+              for (const line of lines) {
+                try {
+                  const obj = JSON.parse(line);
+                  if (obj.error || obj.errorDetail) {
+                    return reject(new Error(`Docker Error: ${obj.error || obj.errorDetail?.message}`));
+                  }
+                  parsedLines.push(obj);
+                } catch {
+                  // Ligne non JSON, conserver le texte
+                }
+              }
+              if (parsedLines.length > 0) {
+                return resolve(parsedLines as any);
+              }
+              return resolve(rawData as any);
             }
           } else {
             reject(new Error(`Docker API HTTP ${res.statusCode} (${res.statusMessage || 'Erreur'}): ${rawData.slice(0, 300)}`));

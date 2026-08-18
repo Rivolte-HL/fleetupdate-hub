@@ -12,5 +12,6 @@ router.get("/me", authMiddleware, AuthController.me);
 router.post("/change-password", authMiddleware, validateBody(authSchemas.changePassword), AuthController.changePassword);
 router.post("/2fa/setup", authMiddleware, AuthController.setup2FA);
 router.post("/2fa/enable", authMiddleware, validateBody(authSchemas.verify2FA), AuthController.verifyAndEnable2FA);
+router.post("/2fa/disable", authMiddleware, validateBody(authSchemas.disable2FA), AuthController.disable2FA);
 
 export default router;

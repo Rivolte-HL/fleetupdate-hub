@@ -67,6 +67,10 @@ export const authSchemas = {
 
   verify2FA: z.object({
     code: z.string().trim().min(6, 'Le code TOTP doit comporter 6 chiffres').max(8)
+  }),
+
+  disable2FA: z.object({
+    password: z.string().min(1, 'Mot de passe actuel requis')
   })
 };
 

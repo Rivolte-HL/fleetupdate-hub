@@ -230,4 +230,44 @@ export class AuthController {
       next(err);
     }
   }
+
+  public static async disable2FA(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'UNAUTHORIZED' });
+        return;
+      }
+
+      const { password } = req.body;
+      if (!password) {
+        res.status(400).json({ error: 'INVALID_INPUT', message: 'Mot de passe requis pour désactiver le 2FA.' });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+      if (!user) {
+        res.status(404).json({ error: 'USER_NOT_FOUND' });
+        return;
+      }
+
+      const isMatch = await bcrypt.compare(password, user.passwordHash);
+      if (!isMatch) {
+        res.status(400).json({ error: 'INVALID_PASSWORD', message: 'Mot de passe incorrect.' });
+        return;
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorEnabled: false,
+          twoFactorSecret: null
+        }
+      });
+
+      await logAuditEvent(req, '2FA_DISABLED', 'USER', user.id, { email: user.email });
+      res.status(200).json({ message: 'Authentification à deux facteurs désactivée avec succès.' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
