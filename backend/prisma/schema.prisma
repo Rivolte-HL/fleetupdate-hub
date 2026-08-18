@@ -1,0 +1,139 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum HostType {
+  PROXMOX
+  PROXMOX_BACKUP_SERVER
+  OPNSENSE
+  DOCKER
+  LINUX_SSH
+  HOME_ASSISTANT
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  PRE_FLIGHT
+  BACKUP
+  UPDATING
+  HEALTH_CHECK
+  SUCCESS
+  FAILED
+  ROLLED_BACK
+}
+
+model User {
+  id               String       @id @default(uuid())
+  email            String       @unique
+  name             String
+  passwordHash     String
+  role             UserRole     @default(OPERATOR)
+  twoFactorSecret  String?      // Encrypted or base32 secret
+  twoFactorEnabled Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  tasks            UpdateTask[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Host {
+  id                   String         @id @default(uuid())
+  name                 String         @unique
+  description          String?
+  adapterType          HostType
+  endpointUrl          String         // e.g. https://192.168.1.1:8006 or 192.168.1.50
+  port                 Int?
+  isOnline             Boolean        @default(true)
+  lastCheckAt          DateTime?
+  requiresReboot       Boolean        @default(false)
+  availableUpdatesCount Int           @default(0)
+  currentVersion       String?
+  targetVersion        String?
+  metadata             Json?          // Dynamic metadata (node name, os type, tags, etc.)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  credential           Credential?
+  updateTasks          UpdateTask[]
+  backupRecords        BackupRecord[]
+
+  @@map("hosts")
+}
+
+model Credential {
+  id               String   @id @default(uuid())
+  hostId           String   @unique
+  host             Host     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  encryptedPayload String   // AES-256-GCM encoded (iv:authTag:ciphertext)
+  authType         String   // API_TOKEN, BASIC_AUTH, SSH_KEY, BEARER_TOKEN
+  keyFingerprint   String?  // Non-sensitive preview (e.g. key name or last 4 chars)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("credentials")
+}
+
+model UpdateTask {
+  id               String       @id @default(uuid())
+  hostId           String
+  host             Host         @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  status           TaskStatus   @default(PENDING)
+  currentStep      String       @default("Initialized")
+  previousVersion  String?
+  targetVersion    String?
+  logs             Json         // Structured logs array: [{ timestamp, level, message, step }]
+  errorDetails     String?
+  triggeredById    String?
+  triggeredBy      User?        @relation(fields: [triggeredById], references: [id], onDelete: SetNull)
+  startedAt        DateTime     @default(now())
+  completedAt      DateTime?
+  backupRecords    BackupRecord[]
+
+  @@map("update_tasks")
+}
+
+model BackupRecord {
+  id                 String      @id @default(uuid())
+  hostId             String
+  host               Host        @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  taskId             String?
+  task               UpdateTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  snapshotIdentifier String      // E.g. vzdump-qemu-100-... or snap-pre-update-20260816
+  backupType         String      // ZFS_SNAPSHOT, VZDUMP_ARCHIVE, XML_CONFIG, DOCKER_IMAGE_TAG
+  sizeBytes          BigInt?     @default(0)
+  isProtected        Boolean     @default(false)
+  expiresAt          DateTime?
+  status             String      @default("VALID")
+  createdAt          DateTime    @default(now())
+
+  @@map("backup_records")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail    String
+  action       String   // e.g. HOST_CREATED, UPDATE_TRIGGERED, ROLLBACK_INITIATED, CREDENTIAL_ROTATED
+  resourceType String   // HOST, TASK, CREDENTIAL, USER
+  resourceId   String?
+  details      Json?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  @@map("audit_logs")
+}
