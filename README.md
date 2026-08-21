@@ -1,10 +1,6 @@
 # 🛡️ FleetUpdate-Hub
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Rivolte-HL/fleetupdate-hub/main/frontend/public/vite.svg" width="80" height="80" alt="FleetUpdate-Hub Logo">
-</p>
-
-<p align="center">
   <strong>The Zero-Trust, Multi-Platform Update Orchestrator & Vulnerability Management Hub for Homelabs and Enterprise Infrastructure.</strong>
 </p>
 
