@@ -44,7 +44,7 @@ jobs:
       # 1. Build and Push Backend Image
       - name: Extract metadata for Backend
         id: meta-backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.prep.outputs.IMAGE_PREFIX }}-backend
           tags: |
@@ -68,7 +68,7 @@ jobs:
       # 2. Build and Push Frontend Image
       - name: Extract metadata for Frontend
         id: meta-frontend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.prep.outputs.IMAGE_PREFIX }}-frontend
           tags: |
