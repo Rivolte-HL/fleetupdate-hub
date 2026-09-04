@@ -1,0 +1,110 @@
+# ==============================================================================
+# FleetUpdate-Hub - Security & Git Sanitization .gitignore
+# ==============================================================================
+
+# 1. Environment & Secret Files (CRITICAL FOR ZERO-TRUST)
+.env
+.env.*
+.env*.local
+.env.development
+.env.test
+.env.production
+.env.staging
+!.env.example
+
+# Docker and local secret payloads
+secrets/*
+!secrets/.gitkeep
+!secrets/README.md
+*.secret
+*.token
+*.credential
+*.passwd
+
+# 2. Cryptographic Keys & Certificates
+*.pem
+*.key
+*.key.*
+*.pkcs12
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.csr
+*.srl
+id_rsa
+id_rsa*
+id_ed25519
+id_ed25519*
+*.pub
+ssh_keys/
+keys/
+certs/
+
+# 3. Dependencies & Package Managers
+node_modules/
+.pnp
+.pnp.js
+.npm
+.yarn/
+.yarn-cache/
+
+# 4. Build, Distribution & Cache
+dist/
+dist-*/
+build/
+out/
+.next/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+.cache/
+
+# 5. Database, Storage & Docker Volumes
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.sql.gz
+postgres_data/
+postgres_data_dev/
+/data/
+
+# 6. Logs & Debug Traces
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 7. OS, IDE & Editor Meta
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Tt]humbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.bak
+*~
+
+# 8. Local Docker Overrides
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# 9. Test & Coverage
+coverage/
+.nyc_output/
+*.lcov
+
