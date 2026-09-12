@@ -28,14 +28,14 @@ export function validateBody<T>(schema: ZodSchema<T>) {
 }
 
 /**
- * Helper anti-SSRF : interdit l'accès aux métadonnées cloud et aux protocoles arbitraires
+ * Helper anti-SSRF : interdit l'accès aux métadonnées cloud, plages link-local et services Docker internes
  */
 export const validateSafeEndpointUrl = (val: string): boolean => {
   if (!val || typeof val !== 'string') return false;
   const trimmed = val.trim();
 
-  // Interdire les pseudo-protocoles dangereux
-  if (/^(file|gopher|dict|ldap|ftp):/i.test(trimmed)) {
+  // 1. Interdire les pseudo-protocoles dangereux
+  if (/^(file|gopher|dict|ldap|ldaps|ftp|tftp|sftp|data|javascript|vbscript):/i.test(trimmed)) {
     return false;
   }
 
@@ -57,18 +57,69 @@ export const validateSafeEndpointUrl = (val: string): boolean => {
 
   hostname = hostname.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
 
-  // Bloquer les adresses de métadonnées cloud (AWS, GCP, Azure, OpenStack, Alibaba)
-  const FORBIDDEN_METADATA = [
-    '169.254.169.254',
+  // 2. Bloquer les services internes du cluster Docker et localhost / loopback
+  const FORBIDDEN_INTERNAL_SERVICES = [
+    'localhost',
+    '127.0.0.1',
+    '::1',
+    '0.0.0.0',
+    'db',
+    'fleetupdate-db',
+    'postgres',
+    'fleetupdate-backend',
+    'backend'
+  ];
+  if (FORBIDDEN_INTERNAL_SERVICES.includes(hostname)) {
+    return false;
+  }
+
+  // 3. Bloquer les adresses et domaines connus de métadonnées cloud
+  const FORBIDDEN_METADATA_NAMES = [
     'metadata.google.internal',
     'metadata',
     'instance-data',
-    '100.100.100.200',
-    'fd00:ec2::254'
+    '100.100.100.200'
   ];
-
-  if (FORBIDDEN_METADATA.includes(hostname)) {
+  if (FORBIDDEN_METADATA_NAMES.includes(hostname)) {
     return false;
+  }
+
+  // 4. Bloquer la plage complète IPv4 link-local (169.254.0.0/16) et loopback (127.0.0.0/8)
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(hostname) || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    return false;
+  }
+
+  // 5. Bloquer les représentations décimales alternatives (127.0.0.0/8 et 169.254.0.0/16)
+  if (/^\d+$/.test(hostname)) {
+    const decIp = parseInt(hostname, 10);
+    if ((decIp >= 2130706432 && decIp <= 2147483647) || (decIp >= 2851995648 && decIp <= 2852061183)) {
+      return false;
+    }
+  }
+
+  // 6. Bloquer les représentations hexadécimales alternatives
+  if (/^0x[0-9a-f]+$/i.test(hostname)) {
+    const hexIp = parseInt(hostname, 16);
+    if ((hexIp >= 2130706432 && hexIp <= 2147483647) || (hexIp >= 2851995648 && hexIp <= 2852061183)) {
+      return false;
+    }
+  }
+
+  // 7. Bloquer IPv6 loopback (::1), link-local (fe80::/10) et AWS IPv6 metadata (fd00:ec2::254)
+  if (hostname === '::1' || hostname.startsWith('fe80:') || hostname.startsWith('fd00:ec2:')) {
+    return false;
+  }
+
+  // 8. Bloquer les adresses IPv4-mapped IPv6 ciblant 127.x.x.x ou 169.254.x.x
+  if (hostname.includes('::ffff:')) {
+    if (
+      hostname.includes('127.') ||
+      hostname.includes('169.254.') ||
+      hostname.includes('7f00:') ||
+      hostname.includes('a9fe:')
+    ) {
+      return false;
+    }
   }
 
   return true;
@@ -131,6 +182,12 @@ export const updateSchemas = {
   trigger: z.object({
     hostId: z.string().uuid('Identifiant hostId invalide (UUID attendu)'),
     autoRollback: z.boolean().optional().default(true)
+  }),
+
+  batch: z.object({
+    hostIds: z.array(z.string().uuid('Chaque identifiant doit être un UUID valide')).min(1, 'Au moins un hôte requis').max(100, 'Maximum 100 hôtes par lot'),
+    autoRollback: z.boolean().optional().default(true),
+    stopOnError: z.boolean().optional().default(true)
   }),
 
   rollback: z.object({

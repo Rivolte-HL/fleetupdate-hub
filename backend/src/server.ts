@@ -162,10 +162,21 @@ app.use(helmet({
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'", 'ws:', 'wss:']
+      connectSrc: ["'self'", 'ws:', 'wss:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"]
     }
   },
-  crossOriginEmbedderPolicy: false
+  frameguard: { action: 'deny' },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
 }));
 
 app.use(cors({
@@ -264,7 +275,12 @@ async function initDatabaseDefaults(): Promise<void> {
         }
       });
       rootLogger.info(`Initial administrator created: ${adminEmail}`);
-      rootLogger.warn('⚠️ Please log in with your configured INITIAL_ADMIN_PASSWORD and enable 2FA TOTP immediately!');
+      if (!isCustomPassword) {
+        rootLogger.warn(`🔑 Generated one-time Administrator Password: ${adminPassword}`);
+        rootLogger.warn('⚠️ Please save this password immediately and change it upon first login via the web console!');
+      } else {
+        rootLogger.warn('⚠️ Please log in with your configured INITIAL_ADMIN_PASSWORD and enable 2FA TOTP immediately!');
+      }
     }
   } catch (err) {
     rootLogger.warn('Initial auto-seed skipped or deferred', { error: (err as any)?.message });

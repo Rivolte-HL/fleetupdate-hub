@@ -39,6 +39,7 @@ services:
     volumes:
       - ssh_keys:/app/keys
     networks:
+      - web-net
       - internal-net
       - mgmt-net
     expose:
@@ -61,8 +62,7 @@ services:
     ports:
       - "3000:80"
     networks:
-      - internal-net
-      - mgmt-net
+      - web-net
 
 volumes:
   postgres_data:
@@ -71,6 +71,8 @@ volumes:
     driver: local
 
 networks:
+  web-net:
+    driver: bridge
   internal-net:
     internal: true
     driver: bridge

@@ -40,7 +40,12 @@ $dbUrl = "postgresql://fleet_user:$($dbPass)@db:5432/fleetupdate?schema=public"
 [System.IO.File]::WriteAllText((Join-Path $secretsDir "db_connection_url.txt"), $dbUrl, [System.Text.Encoding]::ASCII)
 Write-Host "  [OK] Database Connection URL generated in secrets/db_connection_url.txt" -ForegroundColor Green
 
-# 5. Populate or Create .env file for Docker Compose
+# 5. Initial Administrator Password (16 bytes hex)
+$adminPass = Generate-RandomHex 16
+[System.IO.File]::WriteAllText((Join-Path $secretsDir "admin_password.txt"), $adminPass, [System.Text.Encoding]::ASCII)
+Write-Host "  [OK] Initial Administrator password generated in secrets/admin_password.txt" -ForegroundColor Green
+
+# 6. Populate or Create .env file for Docker Compose
 $envFile = Join-Path $rootDir ".env"
 if (-not (Test-Path $envFile)) {
     $envContent = @"
@@ -63,7 +68,7 @@ JWT_EXPIRES_IN=8h
 CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
 
 INITIAL_ADMIN_EMAIL=admin@fleetupdate.local
-INITIAL_ADMIN_PASSWORD=
+INITIAL_ADMIN_PASSWORD=$adminPass
 "@
     [System.IO.File]::WriteAllText($envFile, $envContent, [System.Text.Encoding]::UTF8)
     Write-Host "  [OK] Ready-to-use .env configuration file generated!" -ForegroundColor Green
@@ -73,9 +78,11 @@ INITIAL_ADMIN_PASSWORD=
 
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Yellow
-Write-Host "⚠️  IMPORTANT: SAVE YOUR MASTER ENCRYPTION KEY OFFLINE:" -ForegroundColor Yellow
-Write-Host "AES-256 Key: $masterKey" -ForegroundColor White
-Write-Host "Store this key in your password manager (e.g. KeePass, Bitwarden, 1Password)." -ForegroundColor Yellow
+Write-Host "⚠️  IMPORTANT: SAVE YOUR MASTER ENCRYPTION KEY & ADMIN PASSWORD OFFLINE:" -ForegroundColor Yellow
+Write-Host "AES-256 Key:   $masterKey" -ForegroundColor White
+Write-Host "Initial Admin: admin@fleetupdate.local" -ForegroundColor White
+Write-Host "Admin Pass:    $adminPass" -ForegroundColor White
+Write-Host "Store these credentials in your password manager (e.g. KeePass, Bitwarden)." -ForegroundColor Yellow
 Write-Host "If lost, encrypted credentials stored in the database cannot be recovered." -ForegroundColor Yellow
 Write-Host "======================================================================" -ForegroundColor Yellow
 Write-Host "🚀 To launch the FleetUpdate-Hub stack:" -ForegroundColor Cyan

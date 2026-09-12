@@ -6,7 +6,13 @@ export class EncryptionService {
   private static readonly IV_LENGTH = 12; // 96 bits recommended for GCM
   private static readonly AUTH_TAG_LENGTH = 16; // 128 bits tag
 
-  private static getMasterKey(): Buffer {
+  private static cachedMasterKey: Buffer | null = null;
+
+  public static getMasterKey(): Buffer {
+    if (this.cachedMasterKey) {
+      return this.cachedMasterKey;
+    }
+
     const rawKey = config.masterEncryptionKey;
     if (!rawKey) {
       throw new Error('[EncryptionService] MASTER_ENCRYPTION_KEY is missing or empty.');
@@ -14,12 +20,24 @@ export class EncryptionService {
 
     // Key can be provided as 64-character hex or 32-character utf8
     if (rawKey.length === 64 && /^[0-9a-fA-F]+$/.test(rawKey)) {
-      return Buffer.from(rawKey, 'hex');
+      this.cachedMasterKey = Buffer.from(rawKey, 'hex');
+      return this.cachedMasterKey;
     }
 
     // If key is plain string, derive 32-byte key via PBKDF2 (100,000 iterations) with fixed application salt
     const salt = Buffer.from('fleetupdate-master-encryption-vault-v1', 'utf8');
-    return crypto.pbkdf2Sync(rawKey, salt, 100000, 32, 'sha256');
+    this.cachedMasterKey = crypto.pbkdf2Sync(rawKey, salt, 100000, 32, 'sha256');
+    return this.cachedMasterKey;
+  }
+
+  /**
+   * Clears the cached master key (useful for tests, rotation, or memory wipe)
+   */
+  public static clearKeyCache(): void {
+    if (this.cachedMasterKey) {
+      this.cachedMasterKey.fill(0);
+      this.cachedMasterKey = null;
+    }
   }
 
   /**
@@ -75,6 +93,10 @@ export class EncryptionService {
     let decrypted = decipher.update(cipherTextHex, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
 
+    // Secure memory hygiene: zero out sensitive cryptographic parameters
+    iv.fill(0);
+    authTag.fill(0);
+
     return decrypted;
   }
 
@@ -95,13 +117,14 @@ export class EncryptionService {
   }
 
   /**
-   * Safely decodes a credential record payload into an object or returns empty object
+   * Safely decodes a credential record payload into an object or returns empty object with alert logging
    */
-  public static resolveCredentials(credential?: { encryptedPayload: string } | null): Record<string, any> {
+  public static resolveCredentials(credential?: { encryptedPayload: string } | null, hostIdentifier?: string): Record<string, any> {
     if (!credential || !credential.encryptedPayload) return {};
     try {
       return this.decryptObject(credential.encryptedPayload);
-    } catch {
+    } catch (err: any) {
+      console.error(`[EncryptionService CRITICAL] Échec du déchiffrement des identifiants (Hôte: ${hostIdentifier || 'inconnu'}) : ${err.message}`);
       return {};
     }
   }

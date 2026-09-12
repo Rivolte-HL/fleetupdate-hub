@@ -12,7 +12,7 @@ router.use(authMiddleware);
 router.get('/tasks', UpdatesController.listTasks);
 router.get('/tasks/:id', UpdatesController.getTaskById);
 router.post('/trigger', requireRole(UserRole.OPERATOR), validateBody(updateSchemas.trigger), UpdatesController.triggerUpdate);
-router.post('/batch', requireRole(UserRole.OPERATOR), UpdatesController.triggerBatchUpdate);
+router.post('/batch', requireRole(UserRole.OPERATOR), validateBody(updateSchemas.batch), UpdatesController.triggerBatchUpdate);
 router.post('/rollback', requireRole(UserRole.ADMIN), validateBody(updateSchemas.rollback), UpdatesController.manualRollback);
 
 export default router;

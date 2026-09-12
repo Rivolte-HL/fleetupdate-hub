@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { HostType } from '@prisma/client';
+import { HostType, UserRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { HostsService } from '../services/hosts.service.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
@@ -60,6 +60,15 @@ export class HostsController {
     try {
       const { id } = req.params;
       const { name, description, endpointUrl, port, metadata, credentials } = req.body;
+
+      // Sécurité RBAC : La modification ou rotation des identifiants requiert impérativement le rôle ADMIN
+      if (credentials && Object.keys(credentials).length > 0 && req.user?.role !== UserRole.ADMIN) {
+        res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Droits insuffisants. Seul un administrateur (ADMIN) est autorisé à modifier les identifiants et secrets du coffre-fort.'
+        });
+        return;
+      }
 
       const host = await HostsService.updateHost(id, {
         name,

@@ -37,7 +37,13 @@ echo -n "$DB_URL" > "$SECRETS_DIR/db_connection_url.txt"
 chmod 600 "$SECRETS_DIR/db_connection_url.txt"
 echo "  [OK] Database Connection URL generated in secrets/db_connection_url.txt"
 
-# 5. Populate or Create .env file for Docker Compose
+# 5. Generate Initial Administrator Password
+ADMIN_PASS=$(openssl rand -hex 16)
+echo -n "$ADMIN_PASS" > "$SECRETS_DIR/admin_password.txt"
+chmod 600 "$SECRETS_DIR/admin_password.txt"
+echo "  [OK] Initial Administrator password generated in secrets/admin_password.txt"
+
+# 6. Populate or Create .env file for Docker Compose
 ENV_FILE="$ROOT_DIR/.env"
 if [ ! -f "$ENV_FILE" ]; then
   cat <<EOF > "$ENV_FILE"
@@ -60,7 +66,7 @@ JWT_EXPIRES_IN=8h
 CORS_ORIGIN=http://localhost:3000,http://127.0.0.1:3000
 
 INITIAL_ADMIN_EMAIL=admin@fleetupdate.local
-INITIAL_ADMIN_PASSWORD=
+INITIAL_ADMIN_PASSWORD=${ADMIN_PASS}
 EOF
   chmod 600 "$ENV_FILE"
   echo "  [OK] Ready-to-use .env configuration file generated!"
@@ -70,9 +76,11 @@ fi
 
 echo ""
 echo "======================================================================"
-echo "⚠️  IMPORTANT: SAVE YOUR MASTER ENCRYPTION KEY OFFLINE:"
-echo "AES-256 Key: $MASTER_KEY"
-echo "Store this key in your password manager (e.g. KeePass, Bitwarden, 1Password)."
+echo "⚠️  IMPORTANT: SAVE YOUR MASTER ENCRYPTION KEY & ADMIN PASSWORD OFFLINE:"
+echo "AES-256 Key:   $MASTER_KEY"
+echo "Initial Admin: admin@fleetupdate.local"
+echo "Admin Pass:    $ADMIN_PASS"
+echo "Store these credentials in your password manager (e.g. KeePass, Bitwarden)."
 echo "If lost, encrypted credentials stored in the database cannot be recovered."
 echo "======================================================================"
 echo "🚀 To launch the FleetUpdate-Hub stack:"
