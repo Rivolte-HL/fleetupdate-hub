@@ -18,13 +18,13 @@
 ## 💡 Project Origin & Call for Community Review
 
 > **👋 Note from the Author:**
-> FleetUpdate-Hub started because I couldn't find an existing self-hosted tool to safely orchestrate updates across my own mixed homelab (Proxmox, OPNsense, Docker, Linux, and Home Assistant) with automated snapshots and instant rollbacks.
+> FleetUpdate-Hub started because I couldn't find an existing self-hosted tool to safely orchestrate updates across my own mixed homelab (Proxmox, TrueNAS, OPNsense, Docker, Linux, and Home Assistant) with automated snapshots and instant rollbacks.
 > 
 > Since I am not a full-time senior software engineer, I used **AI-assisted development** to bootstrap this working prototype. 
 > 
 > **I am actively seeking experienced developers, security auditors, and sysadmins to:**
 > - 🔍 **Review the Codebase & Security:** Audit the AES-256-GCM vault, token handling, and pipeline state machine for potential edge cases.
-> - 🧩 **Contribute New Adapters:** Help build integrations for TrueNAS, Unraid, Kubernetes, Synology DSM, Mikrotik RouterOS, pfSense, etc.
+> - 🧩 **Contribute New Adapters:** Help build integrations for Unraid, Kubernetes, Synology DSM, Mikrotik RouterOS, pfSense, etc.
 > - 🚀 **Help Maintain & Improve:** Turn this prototype into a mature, resilient community standard.
 
 ---
@@ -33,6 +33,7 @@
 
 Updating complex, heterogeneous infrastructures is risky, fragmented, and tedious:
 - **Proxmox VE & PBS** require manual shell updates and risk hypervisor instability without verified snapshots.
+- **TrueNAS SCALE** requires distinct procedures for base operating system upgrades versus containerized applications.
 - **OPNsense Firewalls** need manual web navigation and careful kernel reboot monitoring.
 - **Multi-Host Docker Daemons** require manual digest tracking, image pruning, and painful rollbacks when containers crash.
 - **Agentless Linux Servers** (Ubuntu, Debian, RHEL, Arch, Alpine, openSUSE) require custom ad-hoc scripts.
@@ -52,15 +53,15 @@ Updating complex, heterogeneous infrastructures is risky, fragmented, and tediou
 
 ## 🚀 Supported Platforms & Adapters
 
-| Platform / Target | Protocol / Auth | Safety Backup Mechanism | Upgrade Action |
+| Platform / Target | Protocol / Auth | Safety Backup Mechanism | Upgrade Action & Rollback |
 | :--- | :--- | :--- | :--- |
-| **Proxmox VE** | `PVEAPIToken` + SSH | QEMU/LXC Atomic Snapshots or protected `vzdump` | SSH `apt-get dist-upgrade` & kernel verification |
-| **Proxmox Backup Server (PBS)** | `PBSAPIToken` + SSH | Datastore verification checkpoint | SSH package upgrade & reboot validation |
-| **OPNsense Firewall** | API Key & Secret | Automatic XML configuration backup | Core REST API firmware upgrade |
-| **Docker Multi-Host** | TCP / HTTPS Socket / mTLS | Pre-update layer & digest retention | Registry digest check + Container recreation |
-| **Agentless Linux SSH** | Ed25519 Key / Sudoers | `/etc` snapshot archive | Non-interactive APT, DNF, Pacman, APK, Zypper |
-| **Home Assistant** | Long-Lived Access Token | Supervisor Backup (`backup: true`) | POST `/api/services/update/install` |
-| **TrueNAS SCALE** | API Key (Bearer) / Basic | ZFS Safety Snapshot (`boot-pool`) | System OS Upgrade & Docker / Helm App Upgrades |
+| **Proxmox VE** | `PVEAPIToken` + SSH | QEMU/LXC atomic snapshots or protected `vzdump` | SSH `apt-get dist-upgrade` & hypervisor kernel verification |
+| **Proxmox Backup Server (PBS)** | `PBSAPIToken` + SSH | Background task lock & GC audit | SSH package upgrade & datastore verification |
+| **TrueNAS SCALE** | API Key (Bearer) / Basic | ZFS safety snapshot (`boot-pool` or custom dataset) + Config DB | System OS upgrade & Docker / Helm app updates with ZFS rollback |
+| **Docker Multi-Host** | TCP / HTTPS Socket / mTLS | Pre-update layer & digest retention (`fleetupdate-backup:*`) | Registry digest check + zero-downtime container recreation with auto-rollback |
+| **Agentless Linux SSH** | Ed25519 Key / Sudoers | `/etc` snapshot archive in `/var/backups/fleetupdate/` | Non-interactive APT, DNF, Pacman, APK, Zypper + `/etc` rollback |
+| **Home Assistant** | Long-Lived Access Token | Native Supervisor backup (`backup/create`) | REST API `/api/services/update/install` with automatic backup flag |
+| **OPNsense Firewall** | API Key & Secret | Automatic local XML configuration backup | Core REST API firmware upgrade polling with auto-reboot recovery |
 
 ---
 
@@ -83,11 +84,11 @@ flowchart TD
     S --> W
 ```
 
-1. **Pre-Flight Check:** Validates host connectivity, disk headroom, and lock exclusivity.
-2. **Safety Backup:** Creates an atomic restore point tailored to the target platform (vzdump, snapshot, XML backup, image retention).
+1. **Pre-Flight Check:** Validates host reachability, credentials, disk headroom, and lock exclusivity.
+2. **Safety Backup:** Creates an atomic restore point tailored to the target platform (ZFS snapshot, vzdump, XML backup, image retention). **The update never proceeds if this step fails.**
 3. **Apply Update:** Dispatches package, firmware, or container updates with live output streaming over WebSockets.
 4. **Post-Deployment Health Check:** Executes active probes (HTTP/HTTPS, TCP socket, ICMP) over a configurable observation window (default: 60s).
-5. **Rollback or Finalize:** If probes fail, the orchestrator triggers an immediate automated rollback to the pre-update state.
+5. **Rollback or Finalize:** If probes fail, the orchestrator triggers an immediate automated rollback to the pre-update state and dispatches priority notifications.
 
 ---
 
@@ -124,30 +125,31 @@ Access the web console at **`http://localhost:3000`** (or via your HTTPS Reverse
 
 ## 🎯 Interactive Demo Mode
 
-Want to test the full interface and all 6 server types without connecting live hardware?
+Want to test the full interface and all supported server types without connecting live hardware?
 
 1. **In the Web App:** Navigate to **`http://localhost:3000/demo`** to interact with the full mock infrastructure, trigger simulated pipelines, and test multi-channel notifications.
-2. **Offline HTML Preview:** Double-click [`docs/showcase-demo.html`](docs/showcase-demo.html) to open a standalone showcase in any web browser with zero server dependencies.
+2. **Offline HTML Preview:** Open [`docs/showcase-demo.html`](docs/showcase-demo.html) directly in any web browser with zero server dependencies.
 
 ---
 
-## 🛡️ Target Least-Privilege Setup Scripts
+## 🛡️ Target Least-Privilege Setup Guides
 
 FleetUpdate-Hub enforces the principle of least privilege across all integrations:
 
 - **Proxmox VE:** Run `sudo ./scripts/setup-target-proxmox.sh` on your PVE node to create the dedicated `fleetupdate@pve` role and API token.
+- **Proxmox Backup Server (PBS):** Follow [`scripts/setup-target-pbs.md`](scripts/setup-target-pbs.md) to generate the API token and configure least-privilege datastore audit permissions.
+- **TrueNAS SCALE:** Follow [`scripts/setup-target-truenas.md`](scripts/setup-target-truenas.md) to generate an API key and configure ZFS snapshots.
 - **OPNsense:** Follow [`scripts/setup-target-opnsense.md`](scripts/setup-target-opnsense.md) to generate an API key restricted to `System: Firmware`.
 - **Linux Servers:** Run `sudo ./scripts/setup-target-linux.sh "<ssh-ed25519-public-key>"` to create the dedicated `fleetupdate` user with strict sudoers rules for package managers only.
-- **Docker Hosts:** Follow [`scripts/setup-target-docker.sh`](scripts/setup-target-docker.sh) for secure TLS / mTLS configuration.
-- **Home Assistant:** Follow [`scripts/setup-target-homeassistant.md`](scripts/setup-target-homeassistant.md) to generate a Long-Lived Access Token.
-- **TrueNAS SCALE:** Follow [`scripts/setup-target-truenas.md`](scripts/setup-target-truenas.md) to generate a dedicated API Key and configure ZFS snapshots.
+- **Docker Hosts:** Follow [`scripts/setup-target-docker.sh`](scripts/setup-target-docker.sh) for secure TLS / mTLS daemon configuration.
+- **Home Assistant:** Follow [`scripts/setup-target-homeassistant.md`](scripts/setup-target-homeassistant.md) for both target updates and zero-trust outbound entity synchronization.
 
 ---
 
 ## 📚 Documentation & Guides
 
-* 🏛️ **[Architecture & Design](docs/ARCHITECTURE.md)**: Hexagonal architecture, service registry, state machine, and REST routes.
-* 🔒 **[Zero-Trust Cryptography](docs/SECURITY_ZERO_TRUST.md)**: AES-256-GCM vault, network segmentation, and TOTP 2FA.
+* 🏛️ **[Architecture & Design](docs/ARCHITECTURE.md)**: Tier architecture, service registry, state machine, and REST routes.
+* 🔒 **[Zero-Trust Cryptography](docs/SECURITY_ZERO_TRUST.md)**: AES-256-GCM vault, token session revocation, and Home Assistant air-gap model.
 * 🛡️ **[Security Policy](SECURITY.md)**: Vulnerability disclosure guidelines and version support matrix.
 * 🤝 **[Contributing Guide](CONTRIBUTING.md)**: Coding standards, adding new adapters, and PR checklist.
 * 📜 **[Changelog](CHANGELOG.md)**: Version release notes.

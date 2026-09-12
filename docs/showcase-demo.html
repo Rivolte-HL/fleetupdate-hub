@@ -187,7 +187,7 @@
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-bold text-white tracking-tight flex items-center space-x-2">
             <span>Heterogeneous Infrastructure Hosts</span>
-            <span class="text-xs font-mono font-normal text-slate-400">(6 targets connected)</span>
+            <span class="text-xs font-mono font-normal text-slate-400">(7 targets connected)</span>
           </h2>
           <div class="flex items-center space-x-2 text-xs">
             <span class="px-3 py-1 bg-dark-800 border border-dark-600 rounded-lg text-slate-300">Auto-check: Hourly</span>
@@ -348,7 +348,48 @@
             </div>
           </div>
 
-          <!-- 5. Home Assistant -->
+          <!-- 5. TrueNAS SCALE -->
+          <div class="p-5 rounded-2xl bg-dark-800 border border-dark-600/90 hover:border-cyan-500/50 transition shadow-xl space-y-4">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-cyan-950/70 border border-cyan-700/40 text-cyan-400 flex items-center justify-center font-mono font-bold text-base">
+                  NAS
+                </div>
+                <div>
+                  <h3 class="font-bold text-white text-base">truenas-scale-storage01</h3>
+                  <p class="text-xs text-slate-400 font-mono">https://192.168.1.150:443</p>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800/60 flex items-center space-x-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                <span>Online</span>
+              </span>
+            </div>
+
+            <div class="space-y-2 text-xs border-t border-b border-dark-700/80 py-3">
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Platform:</span>
+                <span class="font-semibold text-slate-200">TrueNAS SCALE 24.10</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Target Upgrade:</span>
+                <span class="font-mono text-cyan-400">OS 24.10.1 + 2 Apps</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-slate-400">Safety Guard:</span>
+                <span class="text-cyan-400 font-mono">ZFS Snapshot (boot-pool)</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <span class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-950 text-amber-400 border border-amber-800/40">1 OS + 2 Apps Pending</span>
+              <button onclick="openPipelineModal('truenas-scale-storage01', 'TrueNAS SCALE', '24.10.0 ➔ 24.10.1 + Nextcloud, Vaultwarden')" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 transition flex items-center space-x-1">
+                <span>Update Now</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 6. Home Assistant -->
           <div class="p-5 rounded-2xl bg-dark-800 border border-dark-600/90 hover:border-cyan-500/50 transition shadow-xl space-y-4">
             <div class="flex items-start justify-between">
               <div class="flex items-center space-x-3">
