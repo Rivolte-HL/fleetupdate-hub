@@ -159,4 +159,32 @@ export class HostsController {
       res.status(500).json({ error: 'CHANGELOG_ERROR', message: err.message });
     }
   }
+
+  public static async reboot(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userEmail = req.user?.email || 'admin';
+      const result = await HostsService.rebootHost(id, userEmail);
+
+      await logAuditEvent(req, 'HOST_REBOOT', 'HOST', id, { result: result.message });
+      res.status(200).json(result);
+    } catch (err: any) {
+      if (err.message === 'HOST_NOT_FOUND') {
+        res.status(404).json({ error: 'HOST_NOT_FOUND' });
+        return;
+      }
+      if (err.message.includes('PROXMOX_REBOOT_FORBIDDEN')) {
+        res.status(403).json({
+          error: 'PROXMOX_REBOOT_FORBIDDEN',
+          message: 'Le redémarrage à distance des hyperviseurs Proxmox VE est interdit afin de prévenir les coupures de service et respecter le principe de moindre privilège.'
+        });
+        return;
+      }
+      if (err.message.includes('REBOOT_NOT_SUPPORTED') || err.message.includes('DOCKER_REBOOT_UNSUPPORTED')) {
+        res.status(400).json({ error: 'REBOOT_NOT_SUPPORTED', message: err.message });
+        return;
+      }
+      res.status(502).json({ error: 'REBOOT_FAILED', message: err.message });
+    }
+  }
 }

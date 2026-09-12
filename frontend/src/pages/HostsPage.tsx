@@ -12,6 +12,7 @@ import { PipelineExecutionModal } from "../components/PipelineExecutionModal.js"
 import { EditHostModal } from "../components/EditHostModal.js";
 import { ServiceTutorialModal } from "../components/ServiceTutorialModal.js";
 import { BulkUpdateModal } from "../components/BulkUpdateModal.js";
+import { ConfirmRebootModal } from "../components/ConfirmRebootModal.js";
 import { Plus, Search, Filter, Server, X, RefreshCw, BookOpen, Zap } from "lucide-react";
 
 export const HostsPage: React.FC = () => {
@@ -32,6 +33,7 @@ export const HostsPage: React.FC = () => {
   const [selectedChangelogHost, setSelectedChangelogHost] = useState<Host | null>(null);
   const [changelogData, setChangelogData] = useState<ChangelogItem[]>([]);
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [rebootingHost, setRebootingHost] = useState<Host | null>(null);
 
   const { addToast } = useToast();
   const { t } = useLanguage();
@@ -131,8 +133,20 @@ export const HostsPage: React.FC = () => {
       setSelectedChangelogHost(host);
       const data = await hostsService.getChangelog(host.id);
       setChangelogData(data);
-    } catch (e: any) {
-      addToast("error", t('common.error'), e.message);
+    } catch (err: any) {
+      addToast("error", t('common.error'), err.message);
+    }
+  };
+
+  const handleConfirmReboot = async () => {
+    if (!rebootingHost) return;
+    try {
+      addToast("info", "Redémarrage...", `Ordre de redémarrage envoyé à ${rebootingHost.name}`);
+      const res = await hostsService.rebootHost(rebootingHost.id);
+      addToast("success", "Redémarrage initié", res.message);
+      setTimeout(() => loadData(), 2500);
+    } catch (err: any) {
+      addToast("error", "Échec du redémarrage", err.response?.data?.message || err.message);
     }
   };
 
@@ -284,6 +298,7 @@ export const HostsPage: React.FC = () => {
               onViewChangelog={handleViewChangelog}
               onSelect={(h) => navigate(`/hosts/${h.id}`)}
               onEdit={(h) => setEditingHost(h)}
+              onReboot={(h) => setRebootingHost(h)}
             />
           ))}
         </div>
@@ -397,6 +412,15 @@ export const HostsPage: React.FC = () => {
             }
             loadData();
           }}
+        />
+      )}
+
+      {/* Confirm Reboot Modal */}
+      {rebootingHost && (
+        <ConfirmRebootModal
+          host={rebootingHost}
+          onClose={() => setRebootingHost(null)}
+          onConfirm={handleConfirmReboot}
         />
       )}
     </div>

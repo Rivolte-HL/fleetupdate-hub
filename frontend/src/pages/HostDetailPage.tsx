@@ -9,6 +9,7 @@ import { Badge } from "../components/Badge.js";
 import { PipelineExecutionModal } from "../components/PipelineExecutionModal.js";
 import { RollbackConfirmModal } from "../components/RollbackConfirmModal.js";
 import { EditHostModal } from "../components/EditHostModal.js";
+import { ConfirmRebootModal } from "../components/ConfirmRebootModal.js";
 import { ArrowLeft, Play, RefreshCw, Trash2, Server, HardDrive, Key, AlertTriangle, RotateCcw, Edit3, Box, Layers, ArrowUpCircle, CheckCircle2 } from "lucide-react";
 
 export const HostDetailPage: React.FC = () => {
@@ -21,6 +22,7 @@ export const HostDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showRebootModal, setShowRebootModal] = useState(false);
   const [selectedBackupRollback, setSelectedBackupRollback] = useState<BackupRecord | null>(null);
   const [rollbackLoading, setRollbackLoading] = useState(false);
 
@@ -50,6 +52,18 @@ export const HostDetailPage: React.FC = () => {
       addToast("success", t('common.success'), `${host.name} : ${res.versionInfo?.hasUpdate ? t('common.updatesAvailable') : t('common.upToDate')}`);
     } catch (err: any) {
       addToast("error", t('common.error'), err.response?.data?.message || err.message);
+    }
+  };
+
+  const handleConfirmReboot = async () => {
+    if (!host) return;
+    try {
+      addToast("info", "Redémarrage...", `Ordre de redémarrage envoyé à ${host.name}`);
+      const res = await hostsService.rebootHost(host.id);
+      addToast("success", "Redémarrage initié", res.message);
+      setTimeout(() => loadHost(), 2500);
+    } catch (err: any) {
+      addToast("error", "Échec du redémarrage", err.response?.data?.message || err.message);
     }
   };
 
@@ -152,6 +166,19 @@ export const HostDetailPage: React.FC = () => {
             <RefreshCw className="w-4 h-4" />
           </button>
 
+          {host.requiresReboot && host.adapterType !== 'PROXMOX' && host.adapterType !== 'DOCKER' && (
+            <button
+              type="button"
+              onClick={() => setShowRebootModal(true)}
+              disabled={!isOnline}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 shadow-sm transition-all disabled:opacity-50"
+              title="Redémarrer l'hôte en toute sécurité"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Redémarrer</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleTriggerUpdate}
@@ -206,7 +233,10 @@ export const HostDetailPage: React.FC = () => {
               <span className="text-slate-400 font-medium">{t('hostDetail.rebootStatus')} :</span>
               <span className="font-bold text-white">
                 {host.requiresReboot ? (
-                  <span className="text-amber-400 flex items-center gap-1 font-bold"><AlertTriangle className="w-3.5 h-3.5" /> {t('common.yes')}</span>
+                  <span className="text-amber-400 flex items-center gap-1 font-bold" title={host.adapterType === 'PROXMOX' ? "Redémarrage requis manuellement depuis l'interface Proxmox ou IPMI" : undefined}>
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {host.adapterType === 'PROXMOX' ? 'Oui (manuel via Proxmox)' : t('common.yes')}
+                  </span>
                 ) : t('common.no')}
               </span>
             </div>
@@ -376,6 +406,15 @@ export const HostDetailPage: React.FC = () => {
           onConfirm={handleConfirmRollback}
           onClose={() => setSelectedBackupRollback(null)}
           loading={rollbackLoading}
+        />
+      )}
+
+      {/* Confirm Reboot Modal */}
+      {showRebootModal && (
+        <ConfirmRebootModal
+          host={host}
+          onClose={() => setShowRebootModal(false)}
+          onConfirm={handleConfirmReboot}
         />
       )}
     </div>

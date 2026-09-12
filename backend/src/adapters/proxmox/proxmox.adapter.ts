@@ -21,6 +21,7 @@ export class ProxmoxAdapter extends BaseServiceAdapter {
       description: 'Enterprise hypervisor management via Proxmox REST API & SSH with automated vzdump snapshots',
       icon: 'server',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: false,
       connectionFields: [
         {
           name: 'node',
@@ -164,25 +165,30 @@ export class ProxmoxAdapter extends BaseServiceAdapter {
       targetVersion = `${currentVersion} (+${packageCount} packages available)`;
     }
 
+    // Query node uptime
+    const nodeStatus = await client.getNodeStatus(realNode).catch(() => null);
+    const uptimeSeconds = typeof nodeStatus?.uptime === 'number' ? nodeStatus.uptime : undefined;
+    const lastBootAt = uptimeSeconds ? new Date(Date.now() - uptimeSeconds * 1000) : undefined;
+
+    // Auto-clear requiresReboot if node has booted since the last check/update
+    let requiresReboot = host.requiresReboot;
+    if (requiresReboot && lastBootAt && host.lastCheckAt && lastBootAt.getTime() > host.lastCheckAt.getTime()) {
+      requiresReboot = false;
+    }
+
     return {
       currentVersion,
       targetVersion,
       hasUpdate: packageCount > 0,
-      requiresReboot: updatesList.some((pkg: any) => {
-        const p = (pkg.Package || '').toLowerCase();
-        return (
-          p.includes('kernel') ||
-          p.includes('pve-kernel') ||
-          p.includes('proxmox-kernel') ||
-          p.includes('pve-firmware') ||
-          p.includes('systemd') ||
-          p.includes('libc6') ||
-          p.includes('microcode')
-        );
-      }),
+      requiresReboot,
+      uptimeSeconds,
+      lastBootAt,
       packageCount,
       extraDetails: {
         node: realNode,
+        uptimeSeconds,
+        lastBootAt: lastBootAt?.toISOString(),
+        packageCount,
         packageCount,
         kernelRepoId: ver.repoid,
         packages: updatesList.map((p: any) => ({

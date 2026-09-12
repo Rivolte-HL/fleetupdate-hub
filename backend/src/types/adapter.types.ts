@@ -18,6 +18,7 @@ export interface AdapterMetadata {
   description: string;
   icon: string;
   supportedActions: Array<'checkVersion' | 'fetchChangelog' | 'createBackup' | 'applyUpdate' | 'healthCheck' | 'rollback'>;
+  supportsReboot?: boolean;
   connectionFields: FormFieldDefinition[];
   credentialFields: FormFieldDefinition[];
 }
@@ -27,9 +28,16 @@ export interface VersionInfo {
   targetVersion: string;
   hasUpdate: boolean;
   requiresReboot: boolean;
+  uptimeSeconds?: number;
+  lastBootAt?: Date;
   packageCount?: number;
   downloadSizeBytes?: number;
   extraDetails?: Record<string, any>;
+}
+
+export interface RebootResult {
+  success: boolean;
+  message: string;
 }
 
 export interface ChangelogItem {

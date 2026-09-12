@@ -9,6 +9,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../../types/adapter.types.js';
 
@@ -20,6 +21,7 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
       description: 'Centralized updates for Core, Operating System, Supervisor, Add-ons, and HACS via WebSocket / REST API',
       icon: 'home',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: true,
       connectionFields: [
         {
           name: 'targetEntityId',
@@ -302,5 +304,23 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
       ],
       message: `Home Assistant rollback requires manual operator approval via Settings -> System -> Backups using checkpoint "${backupIdentifier}".`
     };
+  }
+
+  public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
+    const client = this.getClient(host, credentials);
+    try {
+      // Try host reboot (for Home Assistant OS / Supervised)
+      await client.request('/api/services/hassio/host_reboot', 'POST', {}).catch(async () => {
+        // Fallback to Core restart (for HA Container or HA Core)
+        await client.restartCore();
+      });
+
+      return {
+        success: true,
+        message: `Signal de redémarrage envoyé avec succès à Home Assistant (${host.name}).`
+      };
+    } catch (err: any) {
+      throw new Error(`Échec du redémarrage de Home Assistant (${host.name}): ${err.message}`);
+    }
   }
 }

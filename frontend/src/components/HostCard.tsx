@@ -1,7 +1,7 @@
 import React from "react";
 import { Host } from "../types/index.js";
 import { useLanguage } from "../context/LanguageContext.js";
-import { Server, Shield, Box, Terminal, Home, Archive, HardDrive, Play, RefreshCw, FileText, AlertTriangle, CheckCircle2, Edit2, ArrowUpRight } from "lucide-react";
+import { Server, Shield, Box, Terminal, Home, Archive, HardDrive, Play, RefreshCw, FileText, AlertTriangle, CheckCircle2, Edit2, ArrowUpRight, RotateCcw } from "lucide-react";
 import { Badge } from "./Badge.js";
 
 interface HostCardProps {
@@ -11,6 +11,7 @@ interface HostCardProps {
   onViewChangelog: (host: Host) => void;
   onSelect: (host: Host) => void;
   onEdit?: (host: Host) => void;
+  onReboot?: (host: Host) => void;
   loadingRefresh?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const HostCard: React.FC<HostCardProps> = ({
   onViewChangelog,
   onSelect,
   onEdit,
+  onReboot,
   loadingRefresh = false
 }) => {
   const { t } = useLanguage();
@@ -207,8 +209,13 @@ export const HostCard: React.FC<HostCardProps> = ({
             {theme.label}
           </span>
           {host.requiresReboot && (
-            <Badge variant="warning" size="sm">
-              <AlertTriangle className="w-3 h-3" /> {t('common.rebootRequired')}
+            <Badge
+              variant="warning"
+              size="sm"
+              title={host.adapterType === 'PROXMOX' ? "Redémarrage requis manuellement depuis l'interface Proxmox ou IPMI" : "Redémarrage du système requis"}
+            >
+              <AlertTriangle className="w-3 h-3" />
+              {host.adapterType === 'PROXMOX' ? 'Redémarrage requis (manuel)' : t('common.rebootRequired')}
             </Badge>
           )}
         </div>
@@ -220,19 +227,34 @@ export const HostCard: React.FC<HostCardProps> = ({
           {host.lastCheckAt ? new Date(host.lastCheckAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('common.never')}
         </span>
 
-        <button
-          type="button"
-          onClick={() => onTriggerUpdate(host)}
-          disabled={!isOnline || !hasUpdates}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
-            hasUpdates && isOnline
-              ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-cyan-500/25 hover:shadow-cyan-500/40"
-              : "bg-slate-800/60 text-slate-500 cursor-not-allowed border border-slate-700/40"
-          }`}
-        >
-          <Play className="w-3 h-3 fill-current" />
-          <span>{t('common.triggerUpdate')}</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          {host.requiresReboot && host.adapterType !== 'PROXMOX' && host.adapterType !== 'DOCKER' && onReboot && (
+            <button
+              type="button"
+              onClick={() => onReboot(host)}
+              disabled={!isOnline}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 hover:border-amber-500/50 shadow-sm disabled:opacity-50"
+              title="Redémarrer l'hôte en toute sécurité"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Redémarrer</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onTriggerUpdate(host)}
+            disabled={!isOnline || !hasUpdates}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+              hasUpdates && isOnline
+                ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-cyan-500/25 hover:shadow-cyan-500/40"
+                : "bg-slate-800/60 text-slate-500 cursor-not-allowed border border-slate-700/40"
+            }`}
+          >
+            <Play className="w-3 h-3 fill-current" />
+            <span>{t('common.triggerUpdate')}</span>
+          </button>
+        </div>
       </div>
     </div>
   );

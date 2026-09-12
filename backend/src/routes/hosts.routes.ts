@@ -17,6 +17,7 @@ router.put('/:id', requireRole(UserRole.OPERATOR), validateBody(hostSchemas.upda
 router.delete('/:id', requireRole(UserRole.ADMIN), HostsController.delete);
 
 router.post('/:id/refresh', requireRole(UserRole.OPERATOR), HostsController.refreshVersion);
+router.post('/:id/reboot', requireRole(UserRole.ADMIN), HostsController.reboot);
 router.get('/:id/changelog', HostsController.getChangelog);
 
 export default router;

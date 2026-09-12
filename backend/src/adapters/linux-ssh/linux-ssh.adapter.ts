@@ -9,6 +9,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../../types/adapter.types.js';
 
@@ -27,6 +28,7 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
       description: 'Agentless system and container updates over SSH for Debian, Ubuntu, RHEL, Rocky, Arch, Alpine, and openSUSE',
       icon: 'terminal',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: true,
       connectionFields: [
         {
           name: 'port',
@@ -240,9 +242,21 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
     const kernelRelease = kernelInfo.stdout.trim();
     const currentVersion = kernelRelease ? `${osPretty} (${kernelRelease})` : osPretty;
 
-    // 2. Check reboot required flag
+    // 2. Check reboot required flag (Debian/Ubuntu/CentOS needrestart or /run/reboot-required)
     const rebootCheck = await client.executeCommand('[ -f /var/run/reboot-required ] || [ -f /run/reboot-required ] && echo "yes" || echo "no"');
     const requiresReboot = rebootCheck.stdout.trim() === 'yes';
+
+    // Query uptime to track boot time
+    const uptimeRes = await client.executeCommand('cat /proc/uptime 2>/dev/null || cut -d. -f1 /proc/uptime 2>/dev/null').catch(() => ({ stdout: '' }));
+    let uptimeSeconds: number | undefined;
+    let lastBootAt: Date | undefined;
+    if (uptimeRes.stdout.trim()) {
+      const upSec = parseFloat(uptimeRes.stdout.trim().split(' ')[0]);
+      if (!isNaN(upSec) && upSec > 0) {
+        uptimeSeconds = Math.floor(upSec);
+        lastBootAt = new Date(Date.now() - uptimeSeconds * 1000);
+      }
+    }
 
     // 3. Extract and parse upgradable packages
     const packages = await this.parseUpgradablePackages(client, pkgMgr);
@@ -260,15 +274,16 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
       currentVersion,
       targetVersion,
       hasUpdate: packageCount > 0,
-      requiresReboot: requiresReboot || packages.some(p => {
-        const n = p.name.toLowerCase();
-        return n.includes('linux-image') || n.includes('kernel') || n.includes('systemd') || n.includes('libc6') || n.includes('microcode');
-      }),
+      requiresReboot,
+      uptimeSeconds,
+      lastBootAt,
       packageCount,
       extraDetails: {
         packageManager: pkgMgr,
         kernel: kernelRelease,
         os: osPretty,
+        uptimeSeconds,
+        lastBootAt: lastBootAt?.toISOString(),
         packages
       }
     };
@@ -524,6 +539,30 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
         logs: [`Rollback exception: ${e.message}`],
         message: `Linux rollback communication error: ${e.message}`
       };
+    }
+  }
+
+  public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
+    const { client } = this.getClient(host, credentials);
+    const isRoot = !credentials.username || credentials.username.trim().toLowerCase() === 'root';
+    const sudo = isRoot ? '' : 'sudo ';
+
+    try {
+      // Execute reboot; SSH connection typically closes immediately upon system shutdown
+      await client.executeCommand(`${sudo}systemctl reboot || ${sudo}shutdown -r now || ${sudo}reboot`).catch((err: any) => {
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('closed') || msg.includes('ended') || msg.includes('disconnect') || msg.includes('timed out')) {
+          return; // Expected disconnection during reboot
+        }
+        throw err;
+      });
+
+      return {
+        success: true,
+        message: `Signal de redémarrage envoyé avec succès à ${host.name}. L'hôte va redémarrer.`
+      };
+    } catch (err: any) {
+      throw new Error(`Échec du redémarrage de ${host.name} via SSH: ${err.message}`);
     }
   }
 }

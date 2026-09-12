@@ -32,6 +32,11 @@ export const hostsService = {
     return res.data;
   },
 
+  async rebootHost(id: string) {
+    const res = await api.post<{ success: boolean; message: string }>(`/hosts/${id}/reboot`);
+    return res.data;
+  },
+
   async refreshAll() {
     const res = await api.post<{ message: string; hosts: Host[]; summary?: any }>('/hosts/refresh-all');
     return res.data;

@@ -10,6 +10,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../../types/adapter.types.js';
 
@@ -21,6 +22,7 @@ export class ProxmoxBackupServerAdapter extends BaseServiceAdapter {
       description: 'Deduplicated enterprise backup server management via PBS REST API and SSH',
       icon: 'archive',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: true,
       connectionFields: [
         {
           name: 'node',
@@ -349,5 +351,61 @@ export class ProxmoxBackupServerAdapter extends BaseServiceAdapter {
       ],
       message: `Automated package rollback is not supported on PBS to prevent datastore chunk index corruption. Checkpoint "${backupIdentifier}" is saved.`
     };
+  }
+
+  public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
+    const hasSsh = credentials.username || credentials.privateKey || credentials.password;
+    if (hasSsh) {
+      const meta = (host.metadata as any) || {};
+      let hostAddress = (meta.sshHost || '').trim();
+      let port = parseInt(meta.sshPort || meta.port || 22, 10);
+
+      if (!hostAddress) {
+        hostAddress = host.endpointUrl.trim().replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+        if (hostAddress.includes(':')) {
+          hostAddress = hostAddress.split(':')[0];
+        }
+      }
+
+      const sshClient = new SshClient({
+        host: hostAddress,
+        port,
+        username: credentials.username || 'root',
+        privateKey: credentials.privateKey,
+        password: credentials.password
+      });
+
+      const isRoot = !credentials.username || credentials.username.trim().toLowerCase() === 'root';
+      const sudo = isRoot ? '' : 'sudo ';
+
+      try {
+        await sshClient.executeCommand(`${sudo}systemctl reboot || ${sudo}shutdown -r now || ${sudo}reboot`).catch((err: any) => {
+          const msg = String(err?.message || '').toLowerCase();
+          if (msg.includes('closed') || msg.includes('ended') || msg.includes('disconnect') || msg.includes('timed out')) {
+            return;
+          }
+          throw err;
+        });
+
+        return {
+          success: true,
+          message: `Signal de redémarrage envoyé avec succès à Proxmox Backup Server (${host.name}) via SSH.`
+        };
+      } catch (sshErr: any) {
+        throw new Error(`Échec du redémarrage de PBS (${host.name}) via SSH: ${sshErr.message}`);
+      }
+    }
+
+    // Fallback: PBS REST API node status reboot endpoint
+    const { client, rawNode } = this.getClient(host, credentials);
+    try {
+      await client.request(`/nodes/${encodeURIComponent(rawNode)}/status`, 'POST', { command: 'reboot' });
+      return {
+        success: true,
+        message: `Signal de redémarrage envoyé avec succès à Proxmox Backup Server (${host.name}) via l'API.`
+      };
+    } catch (apiErr: any) {
+      throw new Error(`Échec du redémarrage de PBS (${host.name}): ${apiErr.message}`);
+    }
   }
 }

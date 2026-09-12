@@ -9,6 +9,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../../types/adapter.types.js';
 
@@ -94,6 +95,7 @@ export class OPNsenseAdapter extends BaseServiceAdapter {
       description: 'Firmware upgrades, package management, and XML configuration backups via OPNsense Core REST API',
       icon: 'shield',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: true,
       connectionFields: [
         {
           name: 'allowSelfSigned',
@@ -407,5 +409,18 @@ export class OPNsenseAdapter extends BaseServiceAdapter {
       ],
       message: `Automatic firmware downgrade is restricted on OPNsense to prevent network disconnection. Checkpoint XML "${backupIdentifier}" is preserved.`
     };
+  }
+
+  public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
+    const client = this.getClient(host, credentials);
+    try {
+      await client.rebootSystem();
+      return {
+        success: true,
+        message: `Ordre de redémarrage envoyé avec succès au pare-feu OPNsense (${host.name}). Le système redémarre.`
+      };
+    } catch (err: any) {
+      throw new Error(`Échec du redémarrage d'OPNsense (${host.name}): ${err.message}`);
+    }
   }
 }

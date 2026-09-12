@@ -9,6 +9,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../../types/adapter.types.js';
 
@@ -20,6 +21,7 @@ export class TrueNASAdapter extends BaseServiceAdapter {
       description: 'System upgrades, ZFS safety checkpoints, and Application updates (Docker Compose apps & Helm charts) via TrueNAS REST API v2.0',
       icon: 'hard-drive',
       supportedActions: ['checkVersion', 'fetchChangelog', 'createBackup', 'applyUpdate', 'healthCheck', 'rollback'],
+      supportsReboot: true,
       connectionFields: [
         {
           name: 'allowSelfSigned',
@@ -155,7 +157,15 @@ export class TrueNASAdapter extends BaseServiceAdapter {
     }
 
     const hasUpdate = packageCount > 0;
-    const requiresReboot = hasOsUpdate && scope !== 'APPS_ONLY';
+    const rebootAlert = alerts.some((al: any) =>
+      (al.formatted || al.text || al.klass || '').toLowerCase().includes('reboot')
+    );
+    const requiresReboot = (hasOsUpdate && scope !== 'APPS_ONLY') || rebootAlert;
+
+    const uptimeSeconds = typeof (sysInfo as any).uptime_seconds === 'number'
+      ? (sysInfo as any).uptime_seconds
+      : undefined;
+    const lastBootAt = uptimeSeconds ? new Date(Date.now() - uptimeSeconds * 1000) : undefined;
 
     // 5. Build human-readable version labels
     const currentVersion = `${sysInfo.version}${allApps.length > 0 ? ` (${allApps.length} apps)` : ''}`;
@@ -177,12 +187,15 @@ export class TrueNASAdapter extends BaseServiceAdapter {
       targetVersion,
       hasUpdate,
       requiresReboot,
+      uptimeSeconds,
+      lastBootAt,
       packageCount,
       extraDetails: {
         os: {
           version: sysInfo.version,
           hostname: sysInfo.hostname,
-          uptimeSeconds: (sysInfo as any).uptime_seconds,
+          uptimeSeconds,
+          lastBootAt: lastBootAt?.toISOString(),
           model: (sysInfo as any).model
         },
         systemUpdate: {
@@ -549,5 +562,18 @@ export class TrueNASAdapter extends BaseServiceAdapter {
       logs,
       message: `Safety restore point "${backupIdentifier}" ready for manual confirmation in TrueNAS.`
     };
+  }
+
+  public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
+    const client = this.getClient(host, credentials);
+    try {
+      await client.rebootSystem();
+      return {
+        success: true,
+        message: `Ordre de redémarrage envoyé avec succès à TrueNAS (${host.name}). Le serveur redémarre.`
+      };
+    } catch (err: any) {
+      throw new Error(`Échec du redémarrage de TrueNAS (${host.name}): ${err.message}`);
+    }
   }
 }

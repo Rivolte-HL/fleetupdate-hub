@@ -234,6 +234,13 @@ export class TrueNASClient {
   }
 
   /**
+   * Reboots the TrueNAS system via the official system/reboot API endpoint
+   */
+  public async rebootSystem(): Promise<any> {
+    return this.request('/api/v2.0/system/reboot', 'POST', {});
+  }
+
+  /**
    * Retrieves all TrueNAS installed applications (Docker Compose apps or Helm Chart releases)
    */
   public async getApps(): Promise<TrueNASApp[]> {

@@ -342,20 +342,36 @@ export class HomeAssistantSyncService {
     const legacyTriggerId = `input_boolean.fleetupdate_update_${slug}`;
 
     const hasUpdate = (host.availableUpdatesCount || 0) > 0;
+    const isProxmoxPve = host.adapterType === HostType.PROXMOX;
+    const canReboot = host.requiresReboot && !isProxmoxPve && host.adapterType !== HostType.DOCKER;
+    const needsRebootAction = !hasUpdate && canReboot;
+
+    // Entity is 'on' if an update is available OR if an eligible reboot action is pending
+    const entityState = (hasUpdate || needsRebootAction) ? 'on' : 'off';
+
+    let latestVersion = host.currentVersion || 'À jour';
+    let releaseSummary = 'Système entièrement à jour';
+
+    if (hasUpdate) {
+      latestVersion = host.targetVersion || 'Mise à jour disponible';
+      releaseSummary = `${host.availableUpdatesCount} paquet(s) / composant(s) à mettre à jour`;
+    } else if (needsRebootAction) {
+      latestVersion = '⚠️ Redémarrage requis';
+      releaseSummary = 'Mises à jour appliquées avec succès. Redémarrage requis pour appliquer le nouveau noyau / firmware. Cliquez sur Installer pour redémarrer.';
+    } else if (host.requiresReboot && isProxmoxPve) {
+      releaseSummary = 'Mise à jour appliquée. Redémarrage de l\'hyperviseur requis manuellement via l\'interface Proxmox ou console IPMI.';
+    }
+
     const visuals = this.getVisualsForHost(host);
 
     try {
       // 1. Native Home Assistant Update Entity (with SUPPORT_INSTALL & SUPPORT_BACKUP)
-      await client.setEntityState(updateEntityId, hasUpdate ? 'on' : 'off', {
+      await client.setEntityState(updateEntityId, entityState, {
         friendly_name: host.name,
         installed_version: host.currentVersion || 'Non détectée',
-        latest_version: hasUpdate
-          ? (host.targetVersion || 'Mise à jour disponible')
-          : (host.currentVersion || 'À jour'),
+        latest_version: latestVersion,
         title: `${host.name} (${host.adapterType})`,
-        release_summary: hasUpdate
-          ? `${host.availableUpdatesCount} paquet(s) / composant(s) à mettre à jour`
-          : 'Système entièrement à jour',
+        release_summary: releaseSummary,
         in_progress: false,
         auto_update: false,
         supported_features: HA_UPDATE_FEATURES,
@@ -364,6 +380,8 @@ export class HomeAssistantSyncService {
         fleetupdate_host_id: host.id,
         adapter_type: host.adapterType,
         is_online: host.isOnline,
+        reboot_required: host.requiresReboot,
+        can_reboot: canReboot,
         last_check: host.lastCheckAt ? host.lastCheckAt.toISOString() : null
       });
 
@@ -564,13 +582,12 @@ export class HomeAssistantSyncService {
       return;
     }
 
-    if (!host.isOnline) {
-      logger.warn(`[Security Guard] Native install ignored for ${host.name}: Host is offline.`);
-      return;
-    }
+    const hasUpdate = (host.availableUpdatesCount || 0) > 0;
+    const isProxmoxPve = host.adapterType === HostType.PROXMOX;
+    const canReboot = host.requiresReboot && !isProxmoxPve && host.adapterType !== HostType.DOCKER;
 
-    if ((host.availableUpdatesCount || 0) <= 0) {
-      logger.info(`[Security Guard] Native install ignored for ${host.name}: Host is already up to date.`);
+    if (!hasUpdate && !canReboot) {
+      logger.info(`[Security Guard] Native install ignored for ${host.name}: Host is already up to date and does not require reboot.`);
       return;
     }
 
@@ -583,11 +600,45 @@ export class HomeAssistantSyncService {
     }
     this.cooldowns.set(host.id, Date.now());
 
-    // 1. Immediately reflect "in_progress: true" in Home Assistant UI
     const slug = this.slugify(host.name);
     const updateEntityId = `update.fleetupdate_${slug}`;
     const visuals = this.getVisualsForHost(host);
 
+    // CASE 1: Pending Reboot on eligible host -> Execute host reboot
+    if (!hasUpdate && canReboot) {
+      logger.info(`⚡ Intercepted native 'update.install' as REBOOT request for ${host.name}`);
+
+      await client.setEntityState(updateEntityId, 'on', {
+        friendly_name: host.name,
+        installed_version: host.currentVersion || 'Non détectée',
+        latest_version: '⚠️ Redémarrage en cours...',
+        title: `${host.name} (${host.adapterType})`,
+        release_summary: '🔄 Redémarrage sécurisé de l\'hôte en cours...',
+        in_progress: true,
+        update_percentage: 50,
+        supported_features: HA_UPDATE_FEATURES,
+        icon: visuals.icon,
+        entity_picture: visuals.entityPicture,
+        fleetupdate_host_id: host.id,
+        adapter_type: host.adapterType
+      }).catch(() => {});
+
+      try {
+        const { HostsService } = await import('./hosts.service.js');
+        await HostsService.rebootHost(host.id, 'Home Assistant (Bouton Natif Mettre à jour)');
+        logger.info(`Host reboot triggered successfully for ${host.name}`);
+      } catch (err: any) {
+        logger.error(`Host reboot failed for ${host.name}`, { error: err.message });
+        const refreshedHost = await prisma.host.findUnique({ where: { id: host.id } });
+        if (refreshedHost) {
+          await this.syncHostState(refreshedHost);
+        }
+      }
+      return;
+    }
+
+    // CASE 2: Standard update pipeline
+    // 1. Immediately reflect "in_progress: true" in Home Assistant UI
     await client.setEntityState(updateEntityId, 'on', {
       friendly_name: host.name,
       installed_version: host.currentVersion || 'Non détectée',

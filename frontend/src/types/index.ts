@@ -39,6 +39,7 @@ export interface AdapterMetadata {
   description: string;
   icon: string;
   supportedActions: Array<'checkVersion' | 'fetchChangelog' | 'createBackup' | 'applyUpdate' | 'healthCheck' | 'rollback'>;
+  supportsReboot?: boolean;
   connectionFields: FormFieldDefinition[];
   credentialFields: FormFieldDefinition[];
 }

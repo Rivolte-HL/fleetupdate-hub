@@ -189,4 +189,50 @@ export class HostsService {
     const adapter = ServiceRegistry.getInstance().getAdapter(host.adapterType);
     return adapter.fetchChangelog(host, credentials);
   }
+
+  public static async rebootHost(id: string, requestedByEmail?: string): Promise<{ success: boolean; message: string }> {
+    const host = await prisma.host.findUnique({
+      where: { id },
+      include: { credential: true }
+    });
+
+    if (!host) {
+      throw new Error('HOST_NOT_FOUND');
+    }
+
+    // Strict Security Guard: Proxmox VE hypervisors cannot be rebooted remotely
+    if (host.adapterType === HostType.PROXMOX) {
+      throw new Error('PROXMOX_REBOOT_FORBIDDEN: Proxmox VE hypervisors cannot be rebooted remotely to avoid self-hosting outages and comply with least-privilege token policies.');
+    }
+
+    if (host.adapterType === HostType.DOCKER) {
+      throw new Error('DOCKER_REBOOT_UNSUPPORTED: Docker daemon adapter manages containers, not host reboot.');
+    }
+
+    const adapter = ServiceRegistry.getInstance().getAdapter(host.adapterType);
+    if (typeof adapter.reboot !== 'function') {
+      throw new Error(`REBOOT_NOT_SUPPORTED: The adapter "${host.adapterType}" does not support remote reboot.`);
+    }
+
+    const credentials = EncryptionService.resolveCredentials(host.credential);
+    const result = await adapter.reboot(host, credentials);
+
+    // Create audit log for security accountability
+    await prisma.auditLog.create({
+      data: {
+        action: 'HOST_REBOOT',
+        resource: host.name,
+        details: {
+          hostId: host.id,
+          adapterType: host.adapterType,
+          triggeredBy: requestedByEmail || 'system',
+          resultMessage: result.message
+        },
+        ipAddress: '127.0.0.1',
+        severity: 'WARN'
+      }
+    }).catch(() => {});
+
+    return result;
+  }
 }

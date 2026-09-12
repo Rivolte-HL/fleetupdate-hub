@@ -5,13 +5,15 @@ interface BadgeProps {
   children: React.ReactNode;
   size?: 'sm' | 'md';
   pulse?: boolean;
+  title?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({
   variant = 'neutral',
   children,
   size = 'md',
-  pulse = false
+  pulse = false,
+  title
 }) => {
   const variantStyles = {
     success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -23,13 +25,14 @@ export const Badge: React.FC<BadgeProps> = ({
   };
 
   const sizeStyles = {
-    sm: 'text-xs px-2 py-0.5',
-    md: 'text-xs px-2.5 py-1 font-medium'
+    sm: 'text-[10px] px-2 py-0.5',
+    md: 'text-xs px-2.5 py-1'
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border ${variantStyles[variant]} ${sizeStyles[size]}`}
+      title={title}
+      className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${variantStyles[variant]} ${sizeStyles[size]}`}
     >
       {pulse && (
         <span className="relative flex h-1.5 w-1.5">

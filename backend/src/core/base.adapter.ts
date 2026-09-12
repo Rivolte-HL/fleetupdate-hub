@@ -7,6 +7,7 @@ import {
   UpdateExecutionResult,
   HealthCheckResult,
   RollbackResult,
+  RebootResult,
   TargetCredentials
 } from '../types/adapter.types.js';
 
@@ -54,4 +55,9 @@ export abstract class BaseServiceAdapter {
     backupIdentifier: string,
     onProgress?: (step: string, log: string) => void
   ): Promise<RollbackResult>;
+
+  /**
+   * Reboots the target host on demand (optional capability supported by Linux, TrueNAS, OPNsense, HA, PBS)
+   */
+  reboot?(host: Host, credentials: TargetCredentials): Promise<RebootResult>;
 }
