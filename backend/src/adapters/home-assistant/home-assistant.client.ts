@@ -18,7 +18,7 @@ export class HomeAssistantClient {
     this.normalizedBaseUrl = base;
   }
 
-  private async request<T = any>(
+  public async request<T = any>(
     endpoint: string,
     method: 'GET' | 'POST' | 'DELETE' = 'GET',
     body?: any,
@@ -112,6 +112,12 @@ export class HomeAssistantClient {
 
   public async restartCore(): Promise<any> {
     return this.request('/api/services/homeassistant/restart', 'POST');
+  }
+
+  public async rebootHost(): Promise<any> {
+    return this.request('/api/services/hassio/host_reboot', 'POST', {}).catch(async () => {
+      return this.restartCore();
+    });
   }
 
   /**

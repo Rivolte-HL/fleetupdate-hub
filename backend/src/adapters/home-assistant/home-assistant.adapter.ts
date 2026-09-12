@@ -309,11 +309,7 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
   public async reboot(host: Host, credentials: TargetCredentials): Promise<RebootResult> {
     const client = this.getClient(host, credentials);
     try {
-      // Try host reboot (for Home Assistant OS / Supervised)
-      await client.request('/api/services/hassio/host_reboot', 'POST', {}).catch(async () => {
-        // Fallback to Core restart (for HA Container or HA Core)
-        await client.restartCore();
-      });
+      await client.rebootHost();
 
       return {
         success: true,

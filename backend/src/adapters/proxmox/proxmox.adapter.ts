@@ -189,7 +189,6 @@ export class ProxmoxAdapter extends BaseServiceAdapter {
         uptimeSeconds,
         lastBootAt: lastBootAt?.toISOString(),
         packageCount,
-        packageCount,
         kernelRepoId: ver.repoid,
         packages: updatesList.map((p: any) => ({
           name: p.Package,

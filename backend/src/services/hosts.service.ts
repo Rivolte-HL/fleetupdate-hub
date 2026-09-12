@@ -221,15 +221,15 @@ export class HostsService {
     await prisma.auditLog.create({
       data: {
         action: 'HOST_REBOOT',
-        resource: host.name,
+        resourceType: 'HOST',
+        resourceId: host.id,
+        userEmail: requestedByEmail || 'system',
         details: {
-          hostId: host.id,
+          hostName: host.name,
           adapterType: host.adapterType,
-          triggeredBy: requestedByEmail || 'system',
           resultMessage: result.message
         },
-        ipAddress: '127.0.0.1',
-        severity: 'WARN'
+        ipAddress: '127.0.0.1'
       }
     }).catch(() => {});
 
