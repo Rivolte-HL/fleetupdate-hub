@@ -29,6 +29,9 @@ export interface NotificationConfig {
     notifyService?: string; // e.g. "notify.notify", "notify.mobile_app_phone" or "persistent_notification"
     enableActions?: boolean;
     publicUrl?: string;
+    syncEntitiesEnabled?: boolean;
+    allowHaTrigger?: boolean;
+    pollIntervalSeconds?: number;
   };
   nextcloudTalk?: {
     enabled: boolean;
@@ -146,7 +149,10 @@ export class NotificationService {
         token: loadedConfig.homeAssistant?.token || process.env.HA_TOKEN || '',
         notifyService: loadedConfig.homeAssistant?.notifyService || 'notify.notify',
         enableActions: loadedConfig.homeAssistant?.enableActions ?? true,
-        publicUrl: loadedConfig.homeAssistant?.publicUrl || loadedConfig.publicUrl || ''
+        publicUrl: loadedConfig.homeAssistant?.publicUrl || loadedConfig.publicUrl || '',
+        syncEntitiesEnabled: loadedConfig.homeAssistant?.syncEntitiesEnabled ?? true,
+        allowHaTrigger: loadedConfig.homeAssistant?.allowHaTrigger ?? false,
+        pollIntervalSeconds: loadedConfig.homeAssistant?.pollIntervalSeconds ?? 10
       },
       nextcloudTalk: {
         enabled: loadedConfig.nextcloudTalk?.enabled ?? false,

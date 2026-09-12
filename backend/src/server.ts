@@ -130,6 +130,7 @@ const heartbeatInterval = setInterval(() => {
     ws.ping();
   });
 }, 30000);
+heartbeatInterval.unref();
 
 wss.on('close', () => {
   clearInterval(heartbeatInterval);
@@ -288,8 +289,10 @@ async function initDatabaseDefaults(): Promise<void> {
 }
 
 // 6. Start HTTP & WebSocket Server
-server.listen(config.port, config.host, async () => {
-  await initDatabaseDefaults();
+const isTestEnv = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+if (!isTestEnv) {
+  server.listen(config.port, config.host, async () => {
+    await initDatabaseDefaults();
 
   // Reconcile and auto-recover orphaned/stale tasks after server restart or crash
   try {
@@ -321,6 +324,15 @@ server.listen(config.port, config.host, async () => {
   const { SchedulerService } = await import('./core/scheduler.service.js');
   SchedulerService.getInstance().start();
 
+  // Start Zero-Trust Home Assistant Sync & Outbound Watcher
+  try {
+    const { HomeAssistantSyncService } = await import('./services/ha-sync.service.js');
+    HomeAssistantSyncService.getInstance().startWatcher();
+    HomeAssistantSyncService.getInstance().syncAllHosts().catch(() => {});
+  } catch (haErr: any) {
+    rootLogger.warn('Erreur lors du démarrage du service Home Assistant Sync', { error: haErr.message });
+  }
+
   rootLogger.info(`🛡️ FleetUpdate-Hub Core Server running on http://${config.host}:${config.port}`, {
     host: config.host,
     port: config.port,
@@ -328,6 +340,7 @@ server.listen(config.port, config.host, async () => {
     registeredModules: registry.getAllMetadata().map(m => m.type)
   });
 });
+}
 
 export { app, server };
 

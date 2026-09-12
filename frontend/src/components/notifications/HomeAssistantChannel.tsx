@@ -9,6 +9,8 @@ interface HomeAssistantChannelProps {
     token?: string;
     notifyService?: string;
     enableActions?: boolean;
+    syncEntitiesEnabled?: boolean;
+    allowHaTrigger?: boolean;
   };
   onChange: (updated: any) => void;
   onTest: () => void;
@@ -111,6 +113,77 @@ export const HomeAssistantChannel: React.FC<HomeAssistantChannelProps> = ({
               </span>
               <span className="text-[11px] text-slate-400">
                 Ajoute les boutons ⚡ Mettre tout à jour et 📊 Dashboard sur votre smartphone.
+              </span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Zero-Trust Entity Synchronization & Trigger Watcher */}
+      <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div>
+            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+              <span>🛡️ Synchronisation des Entités & Déclencheur Forteresse (Air-Gap)</span>
+            </h4>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Fonctionnement 100% sortant : Home Assistant n'a aucun accès réseau ni port ouvert vers FleetUpdate-Hub.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800/80 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings?.syncEntitiesEnabled !== false}
+              onChange={(e) => onChange({ ...settings, syncEntitiesEnabled: e.target.checked })}
+              className="w-4 h-4 mt-0.5 rounded text-indigo-500 focus:ring-indigo-400 bg-slate-800 border-slate-700"
+            />
+            <div>
+              <span className="text-xs font-bold text-slate-200 block">
+                Créer automatiquement les entités dans Home Assistant
+              </span>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                Publie chaque équipement (Proxmox, TrueNAS, VM, Docker, Linux) sous forme d'entités{' '}
+                <code className="text-indigo-300 font-mono text-[10px] bg-slate-800/80 px-1 py-0.5 rounded">update.fleetupdate_*</code>{' '}
+                avec suivi des versions et de l'état en temps réel.
+              </span>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800/80 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings?.allowHaTrigger === true}
+              onChange={(e) => onChange({ ...settings, allowHaTrigger: e.target.checked })}
+              className="w-4 h-4 mt-0.5 rounded text-amber-500 focus:ring-amber-400 bg-slate-800 border-slate-700"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-200 block">
+                  Autoriser le déclenchement des mises à jour depuis Home Assistant
+                </span>
+                {settings?.allowHaTrigger ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    Mode Armé
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Désarmé (Lecture seule)
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] text-slate-400 block mt-0.5">
+                {settings?.allowHaTrigger ? (
+                  <span className="text-amber-300/90">
+                    ⚡ <strong>Armé :</strong> FleetUpdate exécutera la mise à jour déclenchée depuis Home Assistant uniquement si l'hôte possède une mise à jour vérifiée dans sa base locale.
+                  </span>
+                ) : (
+                  <span className="text-slate-400">
+                    🔒 <strong>Sécurité Absolue :</strong> Les boutons dans Home Assistant sont désarmés. Si Home Assistant exposé à Internet est compromis et qu'un pirate tente d'activer les boutons, FleetUpdate réinitialise immédiatement l'interrupteur et n'exécute strictement rien (« les boutons ne servent à rien »).
+                  </span>
+                )}
               </span>
             </div>
           </label>

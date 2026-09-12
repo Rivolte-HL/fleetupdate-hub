@@ -20,7 +20,7 @@ export class HomeAssistantClient {
 
   private async request<T = any>(
     endpoint: string,
-    method: 'GET' | 'POST' = 'GET',
+    method: 'GET' | 'POST' | 'DELETE' = 'GET',
     body?: any,
     customTimeoutMs?: number
   ): Promise<T> {
@@ -113,4 +113,25 @@ export class HomeAssistantClient {
   public async restartCore(): Promise<any> {
     return this.request('/api/services/homeassistant/restart', 'POST');
   }
+
+  /**
+   * Pushes or updates the state and attributes of an entity in Home Assistant's state machine.
+   * If the entity does not exist, Home Assistant creates it dynamically.
+   */
+  public async setEntityState(entityId: string, state: string, attributes: Record<string, any> = {}): Promise<any> {
+    const safeEntity = encodeURIComponent(entityId.trim());
+    return this.request(`/api/states/${safeEntity}`, 'POST', {
+      state,
+      attributes
+    });
+  }
+
+  /**
+   * Removes an entity from Home Assistant's state machine.
+   */
+  public async removeEntityState(entityId: string): Promise<any> {
+    const safeEntity = encodeURIComponent(entityId.trim());
+    return this.request(`/api/states/${safeEntity}`, 'DELETE');
+  }
 }
+

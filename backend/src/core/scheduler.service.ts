@@ -187,6 +187,12 @@ export class SchedulerService {
         this.lastNotifiedSignature = '';
       }
 
+      // Synchronize updated states into Home Assistant state machine
+      try {
+        const { HomeAssistantSyncService } = await import('../services/ha-sync.service.js');
+        HomeAssistantSyncService.getInstance().syncAllHosts().catch(() => {});
+      } catch (e) {}
+
       return summary;
     } finally {
       this.isRunning = false;

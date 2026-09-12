@@ -3,6 +3,7 @@ import { HostType, UserRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { HostsService } from '../services/hosts.service.js';
 import { logAuditEvent } from '../middlewares/audit.middleware.js';
+import { HomeAssistantSyncService } from '../services/ha-sync.service.js';
 
 export class HostsController {
   public static async list(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
@@ -50,6 +51,7 @@ export class HostsController {
       });
 
       await logAuditEvent(req, 'HOST_CREATED', 'HOST', host.id, { name: host.name, type: host.adapterType });
+      HomeAssistantSyncService.getInstance().syncHostState(host).catch(() => {});
       res.status(201).json({ host, message: 'Hôte créé avec succès.' });
     } catch (err) {
       next(err);
@@ -80,6 +82,7 @@ export class HostsController {
       });
 
       await logAuditEvent(req, 'HOST_UPDATED', 'HOST', host.id);
+      HomeAssistantSyncService.getInstance().syncHostState(host).catch(() => {});
       res.status(200).json({ host, message: 'Hôte mis à jour avec succès.' });
     } catch (err) {
       next(err);
@@ -92,6 +95,7 @@ export class HostsController {
       const host = await HostsService.deleteHost(id);
 
       await logAuditEvent(req, 'HOST_DELETED', 'HOST', id, { name: host.name });
+      HomeAssistantSyncService.getInstance().deleteHostEntities(host).catch(() => {});
       res.status(200).json({ message: 'Hôte supprimé avec succès.' });
     } catch (err: any) {
       if (err.code === 'P2025') {
@@ -106,6 +110,7 @@ export class HostsController {
     try {
       const { id } = req.params;
       const { host, versionInfo } = await HostsService.refreshHostVersion(id);
+      HomeAssistantSyncService.getInstance().syncHostState(host).catch(() => {});
       res.status(200).json({ host, versionInfo });
     } catch (err: any) {
       if (err.message === 'HOST_NOT_FOUND') {
