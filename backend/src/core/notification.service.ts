@@ -192,7 +192,10 @@ export class NotificationService {
         token: newConfig.homeAssistant?.token ?? current.homeAssistant?.token ?? '',
         notifyService: newConfig.homeAssistant?.notifyService ?? current.homeAssistant?.notifyService ?? 'notify.notify',
         enableActions: newConfig.homeAssistant?.enableActions ?? current.homeAssistant?.enableActions ?? true,
-        publicUrl: newConfig.homeAssistant?.publicUrl ?? newConfig.publicUrl ?? current.homeAssistant?.publicUrl ?? current.publicUrl ?? ''
+        publicUrl: newConfig.homeAssistant?.publicUrl ?? newConfig.publicUrl ?? current.homeAssistant?.publicUrl ?? current.publicUrl ?? '',
+        syncEntitiesEnabled: newConfig.homeAssistant?.syncEntitiesEnabled ?? current.homeAssistant?.syncEntitiesEnabled ?? true,
+        allowHaTrigger: newConfig.homeAssistant?.allowHaTrigger ?? current.homeAssistant?.allowHaTrigger ?? false,
+        pollIntervalSeconds: newConfig.homeAssistant?.pollIntervalSeconds ?? current.homeAssistant?.pollIntervalSeconds ?? 10
       },
       nextcloudTalk: {
         enabled: newConfig.nextcloudTalk?.enabled ?? current.nextcloudTalk?.enabled ?? false,

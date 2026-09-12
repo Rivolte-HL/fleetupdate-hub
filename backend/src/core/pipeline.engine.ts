@@ -196,7 +196,7 @@ export class PipelineEngine {
 
       // Update host state
       const refreshedVersion = await adapter.checkVersion(host, credentials);
-      await this.prisma.host.update({
+      const updatedHost = await this.prisma.host.update({
         where: { id: host.id },
         data: {
           currentVersion: refreshedVersion.currentVersion,
@@ -207,6 +207,12 @@ export class PipelineEngine {
           isOnline: true
         }
       });
+
+      // Immediately synchronize refreshed state to Home Assistant
+      try {
+        const { HomeAssistantSyncService } = await import('../services/ha-sync.service.js');
+        await HomeAssistantSyncService.getInstance().syncHostState(updatedHost);
+      } catch (haErr) {}
 
       await appendLog('SUCCESS', 'COMPLETED', `Update pipeline completed successfully for host: ${host.name}`);
       await flushLogs('COMPLETED');
@@ -253,6 +259,15 @@ export class PipelineEngine {
               status: 'ROLLED_BACK',
               details: `Une erreur est survenue lors de la mise à jour (${errorMessage}). Le système a été restauré automatiquement à l'état de sauvegarde ${backupIdentifier}.`
             });
+            if (host) {
+              try {
+                const refreshed = await this.prisma.host.findUnique({ where: { id: host.id } });
+                if (refreshed) {
+                  const { HomeAssistantSyncService } = await import('../services/ha-sync.service.js');
+                  await HomeAssistantSyncService.getInstance().syncHostState(refreshed);
+                }
+              } catch {}
+            }
             return;
           } else {
             await appendLog('ERROR', 'ROLLBACK', `Rollback attempt failed: ${rollbackResult.message}`);
@@ -273,6 +288,14 @@ export class PipelineEngine {
       });
 
       if (host) {
+        try {
+          const refreshed = await this.prisma.host.findUnique({ where: { id: host.id } });
+          if (refreshed) {
+            const { HomeAssistantSyncService } = await import('../services/ha-sync.service.js');
+            await HomeAssistantSyncService.getInstance().syncHostState(refreshed);
+          }
+        } catch {}
+
         await NotificationService.sendAlert({
           title: 'Échec Critique de Mise à Jour',
           hostName: host.name,
