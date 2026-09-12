@@ -473,7 +473,12 @@ export class HomeAssistantSyncService {
       return;
     }
 
-    const wsUrl = haConfig.url.replace(/^http/i, 'ws').replace(/\/$/, '') + '/api/websocket';
+    const wsBase = haConfig.url
+      .trim()
+      .replace(/^https:\/\//i, 'wss://')
+      .replace(/^http:\/\//i, 'ws://')
+      .replace(/\/+$/, '');
+    const wsUrl = `${wsBase}/api/websocket`;
     logger.info(`🔌 Connecting outbound WebSocket to Home Assistant at ${wsUrl}...`);
 
     try {
@@ -499,9 +504,15 @@ export class HomeAssistantSyncService {
           } else if (msg.type === 'event') {
             const eventData = msg.event?.data;
             if (eventData?.domain === 'update' && eventData?.service === 'install') {
-              const entityId = eventData.service_data?.entity_id;
-              if (entityId && typeof entityId === 'string' && entityId.startsWith('update.fleetupdate_')) {
-                await this.handleNativeInstallRequest(entityId, eventData.service_data?.backup !== false);
+              const rawEntityId = eventData.service_data?.entity_id;
+              const entityIds = Array.isArray(rawEntityId)
+                ? rawEntityId
+                : (typeof rawEntityId === 'string' ? [rawEntityId] : []);
+
+              for (const entityId of entityIds) {
+                if (typeof entityId === 'string' && entityId.startsWith('update.fleetupdate_')) {
+                  await this.handleNativeInstallRequest(entityId, eventData.service_data?.backup !== false);
+                }
               }
             }
           }
@@ -555,6 +566,11 @@ export class HomeAssistantSyncService {
 
     if (!host.isOnline) {
       logger.warn(`[Security Guard] Native install ignored for ${host.name}: Host is offline.`);
+      return;
+    }
+
+    if ((host.availableUpdatesCount || 0) <= 0) {
+      logger.info(`[Security Guard] Native install ignored for ${host.name}: Host is already up to date.`);
       return;
     }
 

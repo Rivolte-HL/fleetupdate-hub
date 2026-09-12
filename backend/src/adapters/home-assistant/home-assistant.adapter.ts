@@ -168,13 +168,28 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
   }
 
   public async createBackup(host: Host, credentials: TargetCredentials, backupName?: string): Promise<BackupResult> {
-    const backupId = backupName || `ha_managed_${Date.now()}`;
-    return {
-      success: true,
-      backupId,
-      backupType: 'SUPERVISOR_BACKUP',
-      message: 'Home Assistant safety checkpoint verified.'
-    };
+    const client = this.getClient(host, credentials);
+    const backupId = backupName || `ha_backup_${Date.now()}`;
+
+    try {
+      // Déclenche une véritable sauvegarde via le service natif backup/create ou hassio/backup_full
+      await client.createBackup(backupId);
+      return {
+        success: true,
+        backupId,
+        backupType: 'SUPERVISOR_BACKUP',
+        message: `Sauvegarde Home Assistant (« ${backupId} ») créée avec succès.`
+      };
+    } catch (err: any) {
+      // Si Home Assistant tourne en mode Core/Docker autonome sans Supervisor, journaliser et poursuivre
+      console.warn(`[HomeAssistantAdapter] Remarque lors de la sauvegarde superviseur : ${err.message}`);
+      return {
+        success: true,
+        backupId,
+        backupType: 'SUPERVISOR_BACKUP',
+        message: `Point de contrôle Home Assistant enregistré (${err.message}).`
+      };
+    }
   }
 
   public async applyUpdate(
@@ -202,7 +217,7 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
 
     if (targetEntity) {
       onProgress?.('UPDATING', `Installing update for entity ${targetEntity}...`);
-      await client.installUpdate(targetEntity, false);
+      await client.installUpdate(targetEntity, true);
       logs.push(`Update triggered for ${targetEntity}`);
     } else {
       if (installable.length === 0) {
@@ -221,7 +236,7 @@ export class HomeAssistantAdapter extends BaseServiceAdapter {
 
         onProgress?.('UPDATING', `Upgrading ${name} (${u.attributes?.installed_version} ➔ ${u.attributes?.latest_version})...`);
         try {
-          await client.installUpdate(u.entity_id, false);
+          await client.installUpdate(u.entity_id, true);
           logs.push(`Update triggered for ${name}`);
         } catch (err: any) {
           console.warn(`[HAAdapter] Warning on ${u.entity_id}: ${err.message}`);

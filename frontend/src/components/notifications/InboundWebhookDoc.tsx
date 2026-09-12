@@ -19,8 +19,10 @@ export const InboundWebhookDoc: React.FC<InboundWebhookDocProps> = ({
 
   const haYamlContent = `rest_command:
   fleetupdate_trigger_all:
-    url: "${publicUrl || 'https://update.domain.com'}/api/webhooks/action?secret=${webhookSecret || 'YOUR_SECRET'}"
+    url: "${publicUrl || 'https://update.domain.com'}/api/webhooks/action"
     method: POST
+    headers:
+      authorization: "Bearer ${webhookSecret || 'YOUR_SECRET'}"
     content_type: "application/json"
     payload: '{"action":"TRIGGER_UPDATE_ALL"}'`;
 
