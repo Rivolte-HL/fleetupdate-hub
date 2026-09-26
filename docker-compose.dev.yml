@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fleetupdate-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fleetupdate
+      POSTGRES_USER: fleet_user
+      POSTGRES_PASSWORD: fleet_dev_password_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+
+volumes:
+  postgres_data_dev:

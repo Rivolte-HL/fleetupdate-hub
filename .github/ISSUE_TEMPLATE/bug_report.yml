@@ -1,0 +1,64 @@
+name: 🐛 Rapport de Bug (Bug Report)
+description: Signalez un comportement inattendu ou un dysfonctionnement dans FleetUpdate-Hub.
+title: "[BUG] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de signaler ce bug !
+        **Rappel de sécurité :** Si vous signalez une vulnérabilité de sécurité critique, n'ouvrez pas d'issue publique. Utilisez le formulaire privé dans l'onglet **Security**.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version de FleetUpdate-Hub
+      description: Quelle version ou commit utilisez-vous ?
+      placeholder: ex: v1.0.0 ou commit b7e2825
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Composant affecté
+      options:
+        - Proxmox VE Adapter
+        - Proxmox Backup Server Adapter
+        - OPNsense Adapter
+        - Docker Adapter
+        - Linux SSH Adapter
+        - Home Assistant Adapter
+        - Core Engine / Scheduler
+        - Frontend UI / Dashboard
+        - Base de Données / Chiffrement
+        - Déploiement Docker Compose
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du Problème
+      description: Explication claire et concise de ce qui ne fonctionne pas.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Étapes pour Reproduire
+      description: Comment reproduire le comportement étape par étape ?
+      placeholder: |
+        1. Aller sur la page 'Hôtes'
+        2. Ajouter un hôte de type 'OPNsense'
+        3. Déclencher la mise à jour...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs et Traces d'Erreurs
+      description: Collez ici les logs pertinents (veillez à masquer toute clé ou donnée sensible).
+      render: shell
