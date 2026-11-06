@@ -254,9 +254,11 @@ set -e
 useradd -m -s /bin/bash fleetupdate 2>/dev/null || true
 mkdir -p /home/fleetupdate/.ssh
 rm -f /home/fleetupdate/.ssh/id_ed25519*
+rm -f /home/fleetupdate/.ssh/authorized_keys
 ssh-keygen -t ed25519 -f /home/fleetupdate/.ssh/id_ed25519 -N "" -C "fleetupdate-agent" -q
-cat /home/fleetupdate/.ssh/id_ed25519.pub >> /home/fleetupdate/.ssh/authorized_keys
-chown -R fleetupdate:fleetupdate /home/fleetupdate/.ssh
+cp /home/fleetupdate/.ssh/id_ed25519.pub /home/fleetupdate/.ssh/authorized_keys
+chown -R fleetupdate:fleetupdate /home/fleetupdate
+chmod 750 /home/fleetupdate
 chmod 700 /home/fleetupdate/.ssh && chmod 600 /home/fleetupdate/.ssh/authorized_keys
 
 # 2. Droits sudoers restreints (Moindre Privilège : paquets et reboot uniquement)
@@ -266,37 +268,34 @@ SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
 
 # 3. Nettoyage des anciennes configurations éventuelles
-sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/Match LocalPort 2222/,+6d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/Match User fleetupdate/,+4d' /etc/ssh/sshd_config 2>/dev/null || true
 sed -i '/# Configuration d.*di.*e FleetUpdate-Hub/d' /etc/ssh/sshd_config 2>/dev/null || true
 
-# 4. Configuration SSH sur le port 2222 sécurisé pour fleetupdate
+# 4. Configuration SSH sur le port 2222 pour fleetupdate
 mkdir -p /etc/ssh/sshd_config.d
 cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
 # Configuration dédiée FleetUpdate-Hub sur le port 2222
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
 
 # Fallback si sshd_config.d n’est pas inclus par défaut sur la distribution
-if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+if ! grep -q "Match User fleetupdate" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
     cat << "SSHEOF" >> /etc/ssh/sshd_config
 
 # Configuration dédiée FleetUpdate-Hub sur le port 2222
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 fi
 
@@ -614,9 +613,11 @@ set -e
 useradd -m -s /bin/bash fleetupdate 2>/dev/null || true
 mkdir -p /home/fleetupdate/.ssh
 rm -f /home/fleetupdate/.ssh/id_ed25519*
+rm -f /home/fleetupdate/.ssh/authorized_keys
 ssh-keygen -t ed25519 -f /home/fleetupdate/.ssh/id_ed25519 -N "" -C "fleetupdate-agent" -q
-cat /home/fleetupdate/.ssh/id_ed25519.pub >> /home/fleetupdate/.ssh/authorized_keys
-chown -R fleetupdate:fleetupdate /home/fleetupdate/.ssh
+cp /home/fleetupdate/.ssh/id_ed25519.pub /home/fleetupdate/.ssh/authorized_keys
+chown -R fleetupdate:fleetupdate /home/fleetupdate
+chmod 750 /home/fleetupdate
 chmod 700 /home/fleetupdate/.ssh && chmod 600 /home/fleetupdate/.ssh/authorized_keys
 
 # 2. Strict least-privilege sudoers rule (package managers & reboot only)
@@ -625,38 +626,35 @@ fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/needres
 SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
 
-# 3. Clean up any previous invalid Match AllowUsers configurations
-sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+# 3. Clean up any previous invalid Match configurations
+sed -i '/Match LocalPort 2222/,+6d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/Match User fleetupdate/,+4d' /etc/ssh/sshd_config 2>/dev/null || true
 sed -i '/# Dedicated FleetUpdate-Hub configuration on port 2222/d' /etc/ssh/sshd_config 2>/dev/null || true
 
-# 4. Configure SSH on port 2222 securely isolated for fleetupdate
+# 4. Configure SSH on port 2222 for fleetupdate
 mkdir -p /etc/ssh/sshd_config.d
 cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
 # Dedicated FleetUpdate-Hub configuration on port 2222
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
 
 # Fallback if sshd_config.d is not included by default on this distribution
-if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+if ! grep -q "Match User fleetupdate" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
     cat << "SSHEOF" >> /etc/ssh/sshd_config
 
 # Dedicated FleetUpdate-Hub configuration on port 2222
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 fi
 

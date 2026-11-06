@@ -57,9 +57,12 @@ EOF
 chmod 440 "$SUDOERS_FILE"
 echo "  [OK] Sudoers restrictions applied in $SUDOERS_FILE"
 
-# 5. Clean up any previous invalid Match AllowUsers configurations
-sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+# 5. Clean up any previous invalid Match configurations
+sed -i '/Match LocalPort 2222/,+6d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/Match User fleetupdate/,+4d' /etc/ssh/sshd_config 2>/dev/null || true
 sed -i '/# Dedicated FleetUpdate-Hub configuration on port 2222/d' /etc/ssh/sshd_config 2>/dev/null || true
+chown -R fleetupdate:fleetupdate /home/fleetupdate
+chmod 750 /home/fleetupdate
 
 # 6. Configure SSH on Port 2222 strictly isolated to fleetupdate
 SSH_CONFIG_D="/etc/ssh/sshd_config.d"
@@ -69,29 +72,25 @@ cat << 'SSHEOF' > "$SSH_CONFIG_D/fleetupdate.conf"
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 "$SSH_CONFIG_D/fleetupdate.conf"
 
-if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+if ! grep -q "Match User fleetupdate" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
     cat << 'SSHEOF' >> /etc/ssh/sshd_config
 
 # Dedicated FleetUpdate-Hub configuration on port 2222
 Port 22
 Port 2222
 
-Match LocalPort 2222
+Match User fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
-    PermitRootLogin no
-    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 fi
-echo "  [OK] SSH Port 2222 configured with exclusive authorized_keys isolation"
+echo "  [OK] SSH Port 2222 configured with user fleetupdate key authentication"
 
 # 7. Support systemd socket activation (Ubuntu 22.10, 24.04 LTS, Debian 12 socket)
 if systemctl is-active --quiet ssh.socket 2>/dev/null || systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
