@@ -116,7 +116,7 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
     const pkgMgr = validPkgMgrs.includes(meta.packageManager) ? meta.packageManager : 'apt';
 
     let hostAddress = host.endpointUrl.trim().replace(/^ssh:\/\//i, '').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
-    let port = parseInt(meta.port || meta.sshPort || credentials.port || host.port || 22, 10);
+    let port = parseInt(meta.port || meta.sshPort || credentials.port || host.port || 2222, 10);
     if (hostAddress.includes(':')) {
       const parts = hostAddress.split(':');
       hostAddress = parts[0];
@@ -128,16 +128,21 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
 
     const expectedHostFingerprint = meta.expectedHostFingerprint || credentials.hostFingerprint || credentials.keyFingerprint;
 
+    const normalizedPrivateKey = credentials.privateKey
+      ? credentials.privateKey.trim().replace(/\r\n/g, '\n') + '\n'
+      : undefined;
+
     const client = new SshClient({
       host: hostAddress,
       port,
       username: meta.username || credentials.username || 'fleetupdate',
-      privateKey: credentials.privateKey,
+      privateKey: normalizedPrivateKey,
       passphrase: credentials.passphrase,
       password: credentials.password,
       expectedHostFingerprint
     });
     return { client, pkgMgr };
+
   }
 
   /**

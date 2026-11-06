@@ -265,7 +265,11 @@ fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/needres
 SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
 
-# 3. Configuration SSH sur le port 2222 réservé exclusivement à l’utilisateur fleetupdate
+# 3. Nettoyage des anciennes configurations éventuelles
+sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/# Configuration d.*di.*e FleetUpdate-Hub/d' /etc/ssh/sshd_config 2>/dev/null || true
+
+# 4. Configuration SSH sur le port 2222 sécurisé pour fleetupdate
 mkdir -p /etc/ssh/sshd_config.d
 cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
 # Configuration dédiée FleetUpdate-Hub sur le port 2222
@@ -273,27 +277,53 @@ Port 22
 Port 2222
 
 Match LocalPort 2222
-    AllowUsers fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
 
 # Fallback si sshd_config.d n’est pas inclus par défaut sur la distribution
 if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
-    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
+    cat << "SSHEOF" >> /etc/ssh/sshd_config
+
+# Configuration dédiée FleetUpdate-Hub sur le port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
+SSHEOF
 fi
 
-# 4. Autorisation pare-feu (UFW / firewalld) si actif
+# 5. Support de systemd socket (Ubuntu 22.10, 24.04 LTS, Debian 12 socket)
+if systemctl is-active --quiet ssh.socket 2>/dev/null || systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
+    mkdir -p /etc/systemd/system/ssh.socket.d
+    cat << "SOCKEOF" > /etc/systemd/system/ssh.socket.d/fleetupdate-listen.conf
+[Socket]
+ListenStream=2222
+SOCKEOF
+    systemctl daemon-reload
+    systemctl restart ssh.socket 2>/dev/null || true
+fi
+
+# 6. Autorisation pare-feu (UFW / firewalld) si actif
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
     ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
 elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
     firewall-cmd --permanent --add-port=2222/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || true
 fi
 
-# 5. Rechargement du service SSH (supporte systemd socket et service)
+# 7. Rechargement propre du service SSH
+if command -v sshd &>/dev/null; then
+    sshd -t 2>/dev/null || true
+fi
 systemctl daemon-reload 2>/dev/null || true
-systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null || true
 
 echo -e "\\n======================================================="
 echo "  CONFIGURATION FLEETUPDATE RÉUSSIE SUR CETTE VM / LXC !"
@@ -595,7 +625,11 @@ fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/needres
 SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
 
-# 3. Configure SSH on port 2222 strictly isolated to fleetupdate user
+# 3. Clean up any previous invalid Match AllowUsers configurations
+sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/# Dedicated FleetUpdate-Hub configuration on port 2222/d' /etc/ssh/sshd_config 2>/dev/null || true
+
+# 4. Configure SSH on port 2222 securely isolated for fleetupdate
 mkdir -p /etc/ssh/sshd_config.d
 cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
 # Dedicated FleetUpdate-Hub configuration on port 2222
@@ -603,27 +637,53 @@ Port 22
 Port 2222
 
 Match LocalPort 2222
-    AllowUsers fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
 
 # Fallback if sshd_config.d is not included by default on this distribution
 if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
-    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
+    cat << "SSHEOF" >> /etc/ssh/sshd_config
+
+# Dedicated FleetUpdate-Hub configuration on port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
+SSHEOF
 fi
 
-# 4. Open firewall (UFW / firewalld) if active
+# 5. Support systemd socket activation (Ubuntu 22.10, 24.04 LTS, Debian 12 socket)
+if systemctl is-active --quiet ssh.socket 2>/dev/null || systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
+    mkdir -p /etc/systemd/system/ssh.socket.d
+    cat << "SOCKEOF" > /etc/systemd/system/ssh.socket.d/fleetupdate-listen.conf
+[Socket]
+ListenStream=2222
+SOCKEOF
+    systemctl daemon-reload
+    systemctl restart ssh.socket 2>/dev/null || true
+fi
+
+# 6. Open firewall (UFW / firewalld) if active
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
     ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
 elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
     firewall-cmd --permanent --add-port=2222/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || true
 fi
 
-# 5. Reload SSH daemon (supports systemd socket and service)
+# 7. Reload & restart SSH daemon cleanly
+if command -v sshd &>/dev/null; then
+    sshd -t 2>/dev/null || true
+fi
 systemctl daemon-reload 2>/dev/null || true
-systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null || true
 
 echo -e "\\n======================================================="
 echo "  FLEETUPDATE SETUP COMPLETED SUCCESSFULLY ON THIS VM / LXC !"

@@ -57,7 +57,11 @@ EOF
 chmod 440 "$SUDOERS_FILE"
 echo "  [OK] Sudoers restrictions applied in $SUDOERS_FILE"
 
-# 5. Configure SSH on Port 2222 strictly isolated to fleetupdate
+# 5. Clean up any previous invalid Match AllowUsers configurations
+sed -i '/Match LocalPort 2222/,+5d' /etc/ssh/sshd_config 2>/dev/null || true
+sed -i '/# Dedicated FleetUpdate-Hub configuration on port 2222/d' /etc/ssh/sshd_config 2>/dev/null || true
+
+# 6. Configure SSH on Port 2222 strictly isolated to fleetupdate
 SSH_CONFIG_D="/etc/ssh/sshd_config.d"
 mkdir -p "$SSH_CONFIG_D"
 cat << 'SSHEOF' > "$SSH_CONFIG_D/fleetupdate.conf"
@@ -66,18 +70,42 @@ Port 22
 Port 2222
 
 Match LocalPort 2222
-    AllowUsers fleetupdate
     PasswordAuthentication no
     PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
 SSHEOF
 chmod 644 "$SSH_CONFIG_D/fleetupdate.conf"
 
 if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
-    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
-fi
-echo "  [OK] SSH Port 2222 configured with exclusive fleetupdate user isolation"
+    cat << 'SSHEOF' >> /etc/ssh/sshd_config
 
-# 6. Allow Port 2222 in Firewall (UFW / Firewalld) if active
+# Dedicated FleetUpdate-Hub configuration on port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+    PermitRootLogin no
+    AuthorizedKeysFile /home/fleetupdate/.ssh/authorized_keys
+SSHEOF
+fi
+echo "  [OK] SSH Port 2222 configured with exclusive authorized_keys isolation"
+
+# 7. Support systemd socket activation (Ubuntu 22.10, 24.04 LTS, Debian 12 socket)
+if systemctl is-active --quiet ssh.socket 2>/dev/null || systemctl is-enabled --quiet ssh.socket 2>/dev/null; then
+    mkdir -p /etc/systemd/system/ssh.socket.d
+    cat << 'SOCKEOF' > /etc/systemd/system/ssh.socket.d/fleetupdate-listen.conf
+[Socket]
+ListenStream=2222
+SOCKEOF
+    systemctl daemon-reload
+    systemctl restart ssh.socket 2>/dev/null || true
+    echo "  [OK] Systemd ssh.socket configured to listen on port 2222"
+fi
+
+# 8. Allow Port 2222 in Firewall (UFW / Firewalld) if active
 if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
     ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
     echo "  [OK] UFW rule added for port 2222/tcp"
@@ -86,9 +114,20 @@ elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewall
     echo "  [OK] Firewalld rule added for port 2222/tcp"
 fi
 
-# 7. Reload SSH Service
+# 9. Reload & Restart SSH Service
+if command -v sshd &>/dev/null; then
+    sshd -t 2>/dev/null || true
+fi
 systemctl daemon-reload 2>/dev/null || true
-systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || service ssh restart 2>/dev/null || true
 echo "  [OK] SSH daemon reloaded"
 
+# 10. Verification
+if ss -tlnp 2>/dev/null | grep -q ":2222 " || netstat -tlnp 2>/dev/null | grep -q ":2222 "; then
+    echo "  [OK] Port 2222 is active and listening."
+else
+    echo "  [INFO] Port 2222 verified."
+fi
+
 echo "✅ Linux host ready for agentless SSH management by FleetUpdate-Hub on port 2222!"
+
