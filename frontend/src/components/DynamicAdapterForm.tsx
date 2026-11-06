@@ -36,8 +36,24 @@ export const DynamicAdapterForm: React.FC<DynamicAdapterFormProps> = ({
   const { t } = useLanguage();
 
   // Dynamic state for adapter connection metadata & credentials
-  const [metadataValues, setMetadataValues] = useState<Record<string, any>>(initialValues?.metadata || {});
-  const [credentialValues, setCredentialValues] = useState<Record<string, any>>(initialValues?.credentials || {});
+  const [metadataValues, setMetadataValues] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = { ...(initialValues?.metadata || {}) };
+    adapter.connectionFields?.forEach(f => {
+      if (initial[f.name] === undefined && f.defaultValue !== undefined) {
+        initial[f.name] = f.defaultValue;
+      }
+    });
+    return initial;
+  });
+  const [credentialValues, setCredentialValues] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = { ...(initialValues?.credentials || {}) };
+    adapter.credentialFields?.forEach(f => {
+      if (initial[f.name] === undefined && f.defaultValue !== undefined) {
+        initial[f.name] = f.defaultValue;
+      }
+    });
+    return initial;
+  });
 
   const handleMetadataChange = (fieldName: string, value: any) => {
     setMetadataValues(prev => ({ ...prev, [fieldName]: value }));
@@ -58,12 +74,16 @@ export const DynamicAdapterForm: React.FC<DynamicAdapterFormProps> = ({
       }
     });
 
+    const resolvedPort = port
+      ? parseInt(port, 10)
+      : (metadataValues.port ? parseInt(metadataValues.port, 10) : undefined);
+
     await onSubmit({
       name,
       description,
       adapterType: adapter.type,
       endpointUrl,
-      port: port ? parseInt(port, 10) : undefined,
+      port: resolvedPort,
       metadata: metadataValues,
       credentials: cleanedCredentials
     });
