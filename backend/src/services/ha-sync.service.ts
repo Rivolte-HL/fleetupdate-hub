@@ -26,6 +26,11 @@ export class HomeAssistantSyncService {
   private mockConn: { client: HomeAssistantClient; config: any } | null = null;
   private wsClient: WebSocket | null = null;
   private wsReconnectTimer: NodeJS.Timeout | null = null;
+  private wsHeartbeatTimer: NodeJS.Timeout | null = null;
+  private isWsAlive: boolean = false;
+  private isWsAuthenticated: boolean = false;
+  private reconnectDelayMs: number = 5000;
+  private nextMsgId: number = 1;
 
   public static getInstance(): HomeAssistantSyncService {
     if (!HomeAssistantSyncService.instance) {
@@ -456,6 +461,95 @@ export class HomeAssistantSyncService {
   }
 
   /**
+   * Starts a proactive 25-second heartbeat ping loop to prevent NAT/firewall drops
+   * and instantly detect dead or half-open zombie WebSocket connections.
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.isWsAlive = true;
+
+    this.wsHeartbeatTimer = setInterval(() => {
+      if (!this.wsClient || this.wsClient.readyState !== WebSocket.OPEN) {
+        this.stopHeartbeat();
+        return;
+      }
+
+      // If previous ping was never acknowledged within the interval, connection is dead
+      if (!this.isWsAlive) {
+        logger.warn('⚠️ [HA WebSocket Heartbeat] No pong/message received in 25s. Terminating zombie connection...');
+        this.terminateWebSocket();
+        this.scheduleReconnect(2000);
+        return;
+      }
+
+      this.isWsAlive = false;
+
+      // 1. Send WebSocket protocol ping frame
+      try {
+        this.wsClient.ping();
+      } catch {}
+
+      // 2. Send Home Assistant protocol ping message
+      try {
+        const pingId = ++this.nextMsgId;
+        this.wsClient.send(JSON.stringify({ id: pingId, type: 'ping' }));
+      } catch (err: any) {
+        logger.warn(`Failed to send HA protocol ping: ${err.message}`);
+      }
+    }, 25000);
+
+    if (this.wsHeartbeatTimer.unref) {
+      this.wsHeartbeatTimer.unref();
+    }
+  }
+
+  private stopHeartbeat(): void {
+    if (this.wsHeartbeatTimer) {
+      clearInterval(this.wsHeartbeatTimer);
+      this.wsHeartbeatTimer = null;
+    }
+    this.isWsAlive = false;
+  }
+
+  /**
+   * Cleanly terminates and wipes an existing WebSocket client
+   */
+  private terminateWebSocket(): void {
+    this.stopHeartbeat();
+    this.isWsAuthenticated = false;
+    if (this.wsClient) {
+      try {
+        this.wsClient.removeAllListeners();
+        this.wsClient.terminate();
+      } catch {}
+      this.wsClient = null;
+    }
+  }
+
+  /**
+   * Schedules a reconnection attempt with exponential backoff (5s up to 60s)
+   */
+  private scheduleReconnect(delayOverrideMs?: number): void {
+    if (this.wsReconnectTimer) {
+      return; // Reconnect already in flight
+    }
+
+    const delay = delayOverrideMs ?? this.reconnectDelayMs;
+    // Exponential backoff capped at 60 seconds
+    this.reconnectDelayMs = Math.min(Math.round(this.reconnectDelayMs * 1.5), 60000);
+
+    logger.info(`🔄 Scheduling Home Assistant WebSocket reconnect in ${Math.round(delay / 1000)}s...`);
+    this.wsReconnectTimer = setTimeout(() => {
+      this.wsReconnectTimer = null;
+      this.startWebSocketListener().catch(() => {});
+    }, delay);
+
+    if (this.wsReconnectTimer.unref) {
+      this.wsReconnectTimer.unref();
+    }
+  }
+
+  /**
    * Stops the outbound watcher and closes WebSocket connection
    */
   public stopWatcher(): void {
@@ -467,12 +561,7 @@ export class HomeAssistantSyncService {
       clearTimeout(this.wsReconnectTimer);
       this.wsReconnectTimer = null;
     }
-    if (this.wsClient) {
-      try {
-        this.wsClient.close();
-      } catch {}
-      this.wsClient = null;
-    }
+    this.terminateWebSocket();
     logger.info('Home Assistant Outbound Watcher & WebSocket stopped.');
   }
 
@@ -487,9 +576,13 @@ export class HomeAssistantSyncService {
 
     if (!haConfig.url || !haConfig.token) return;
 
-    if (this.wsClient && (this.wsClient.readyState === WebSocket.OPEN || this.wsClient.readyState === WebSocket.CONNECTING)) {
+    // Avoid duplicating an already open, authenticated connection
+    if (this.wsClient && this.wsClient.readyState === WebSocket.OPEN && this.isWsAuthenticated) {
       return;
     }
+
+    // Clean up any stale or lingering client
+    this.terminateWebSocket();
 
     const wsBase = haConfig.url
       .trim()
@@ -506,21 +599,44 @@ export class HomeAssistantSyncService {
       this.wsClient = ws;
 
       ws.on('open', () => {
-        logger.info('Home Assistant WebSocket connection opened.');
+        logger.info('Home Assistant WebSocket connection opened. Awaiting auth_required...');
+      });
+
+      ws.on('pong', () => {
+        this.isWsAlive = true;
       });
 
       ws.on('message', async (data: WebSocket.RawData) => {
+        this.isWsAlive = true;
         try {
           const msg = JSON.parse(data.toString());
+
+          if (msg.type === 'pong') {
+            this.isWsAlive = true;
+            return;
+          }
+
           if (msg.type === 'auth_required') {
             ws.send(JSON.stringify({ type: 'auth', access_token: haConfig.token.trim() }));
           } else if (msg.type === 'auth_ok') {
-            logger.info('🛡️ Home Assistant WebSocket Authenticated (Zero-Trust Outbound). Subscribed to native update.install events.');
+            this.isWsAuthenticated = true;
+            this.reconnectDelayMs = 5000; // Reset backoff on success
+            this.startHeartbeat();
+            logger.info('🛡️ Home Assistant WebSocket Authenticated (Zero-Trust Outbound). Subscribing to native update.install events...');
+
+            const subId = ++this.nextMsgId;
             ws.send(JSON.stringify({
-              id: 1,
+              id: subId,
               type: 'subscribe_events',
               event_type: 'call_service'
             }));
+
+            // Automatically resynchronize all entities in Home Assistant upon reconnection!
+            this.syncAllHosts().catch(() => {});
+          } else if (msg.type === 'auth_invalid') {
+            logger.error(`❌ Home Assistant WebSocket authentication rejected: ${msg.message}`);
+            this.terminateWebSocket();
+            this.scheduleReconnect(30000); // Wait 30s before retrying after auth failure
           } else if (msg.type === 'event') {
             const eventData = msg.event?.data;
             if (eventData?.domain === 'update' && eventData?.service === 'install') {
@@ -553,20 +669,19 @@ export class HomeAssistantSyncService {
 
       ws.on('error', (err: any) => {
         logger.warn(`Home Assistant WebSocket error: ${err.message}`);
+        this.terminateWebSocket();
+        this.scheduleReconnect();
       });
 
-      ws.on('close', () => {
-        this.wsClient = null;
-        if (!this.wsReconnectTimer) {
-          this.wsReconnectTimer = setTimeout(() => {
-            this.wsReconnectTimer = null;
-            this.startWebSocketListener().catch(() => {});
-          }, 10000);
-          if (this.wsReconnectTimer.unref) this.wsReconnectTimer.unref();
-        }
+      ws.on('close', (code, reason) => {
+        logger.info(`Home Assistant WebSocket closed (Code ${code}: ${reason?.toString() || 'no reason'}).`);
+        this.terminateWebSocket();
+        this.scheduleReconnect();
       });
     } catch (err: any) {
       logger.warn(`Failed to initialize Home Assistant WebSocket: ${err.message}`);
+      this.terminateWebSocket();
+      this.scheduleReconnect();
     }
   }
 
@@ -829,8 +944,11 @@ export class HomeAssistantSyncService {
         await client.removeEntityState(trigger.entity_id).catch(() => {});
       }
 
-      // Check if WebSocket connection is alive; if not, attempt reconnect
-      if (!this.wsClient || this.wsClient.readyState === WebSocket.CLOSED) {
+      // Active watchdog: verify WebSocket is truly connected, healthy, and authenticated
+      const isWsHealthy = this.wsClient && this.wsClient.readyState === WebSocket.OPEN && this.isWsAuthenticated;
+      if (!isWsHealthy) {
+        logger.info('🛡️ [Watchdog] Home Assistant WebSocket inactive or unauthenticated. Re-establishing connection...');
+        this.terminateWebSocket();
         this.startWebSocketListener().catch(() => {});
       }
     } catch (err: any) {

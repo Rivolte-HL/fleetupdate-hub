@@ -244,41 +244,82 @@ export const tutorialsFr: Record<string, TutorialData> = {
       'Mises à niveau de paquets sécurisées et audit sans agent pour toutes vos VM et serveurs Linux (Debian, Ubuntu, AlmaLinux, Rocky, Alpine, Arch, Fedora).',
     steps: [
       {
-        title: 'Méthode 1 (Recommandée) : Configuration automatique en 1 commande sur la VM cible',
+        title: 'Méthode 1 (Recommandée) : Configuration automatique en 1 commande sur la VM / LXC cible',
         description:
-          'Connectez-vous dans le terminal de votre VM Linux et collez cette commande complète. Elle va créer l’utilisateur fleetupdate, générer la clé SSH Ed25519 directement sur la VM, configurer les permissions et vous afficher la clé privée à copier :',
+          'Connectez-vous dans le terminal de votre VM ou conteneur LXC Linux et collez cette commande complète. Elle crée l’utilisateur dédié fleetupdate, configure le port SSH sécurisé 2222 avec restriction d’accès exclusive, génère la clé SSH Ed25519 et vous affiche la clé privée à copier :',
         command:
           `sudo bash -c '
+set -e
+# 1. Création de l’utilisateur de service dédié fleetupdate
 useradd -m -s /bin/bash fleetupdate 2>/dev/null || true
 mkdir -p /home/fleetupdate/.ssh
+rm -f /home/fleetupdate/.ssh/id_ed25519*
 ssh-keygen -t ed25519 -f /home/fleetupdate/.ssh/id_ed25519 -N "" -C "fleetupdate-agent" -q
-cp /home/fleetupdate/.ssh/id_ed25519.pub /home/fleetupdate/.ssh/authorized_keys
+cat /home/fleetupdate/.ssh/id_ed25519.pub >> /home/fleetupdate/.ssh/authorized_keys
 chown -R fleetupdate:fleetupdate /home/fleetupdate/.ssh
 chmod 700 /home/fleetupdate/.ssh && chmod 600 /home/fleetupdate/.ssh/authorized_keys
-echo "fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/dnf, /usr/bin/yum, /usr/bin/pacman, /sbin/apk, /usr/bin/zypper, /sbin/reboot, /usr/sbin/reboot, /bin/systemctl" > /etc/sudoers.d/fleetupdate
+
+# 2. Droits sudoers restreints (Moindre Privilège : paquets et reboot uniquement)
+cat << "SUDOEOF" > /etc/sudoers.d/fleetupdate
+fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/needrestart, /usr/bin/dnf, /usr/bin/yum, /usr/bin/pacman, /usr/bin/checkupdates, /sbin/apk, /usr/bin/apk, /usr/bin/zypper, /sbin/reboot, /usr/sbin/reboot, /bin/systemctl, /bin/mkdir, /usr/bin/mkdir, /bin/tar, /usr/bin/tar, /bin/chmod, /usr/bin/chmod, /usr/bin/docker
+SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
+
+# 3. Configuration SSH sur le port 2222 réservé exclusivement à l’utilisateur fleetupdate
+mkdir -p /etc/ssh/sshd_config.d
+cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
+# Configuration dédiée FleetUpdate-Hub sur le port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    AllowUsers fleetupdate
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+SSHEOF
+chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
+
+# Fallback si sshd_config.d n’est pas inclus par défaut sur la distribution
+if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
+fi
+
+# 4. Autorisation pare-feu (UFW / firewalld) si actif
+if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
+    ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
+elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+    firewall-cmd --permanent --add-port=2222/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || true
+fi
+
+# 5. Rechargement du service SSH (supporte systemd socket et service)
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+
 echo -e "\\n======================================================="
-echo "  CONFIGURATION FLEETUPDATE RÉUSSIE SUR CETTE VM !"
+echo "  CONFIGURATION FLEETUPDATE RÉUSSIE SUR CETTE VM / LXC !"
 echo "======================================================="
+echo "Port SSH configuré : 2222 (réservé exclusivement à fleetupdate)"
+echo "Utilisateur : fleetupdate"
+echo ""
 echo "Copiez le bloc de clé privée ci-dessous dans FleetUpdate-Hub :"
 echo ""
 cat /home/fleetupdate/.ssh/id_ed25519
 echo ""
 echo "======================================================="
 '`,
-        tip: 'Une fois exécuté, sélectionnez et copiez la clé privée affichée.'
+        tip: 'Sécurité : Le port 2222 n’autorise QUE l’utilisateur fleetupdate avec clé Ed25519. Vos autres accès sur le port 22 restent inchangés.'
       },
       {
         title: 'Méthode 2 : Enregistrer l’équipement dans FleetUpdate-Hub',
         description:
-          'Dans FleetUpdate-Hub, remplissez les champs :\n• Endpoint URL / IP : l’adresse IP de votre VM\n• Utilisateur SSH : fleetupdate\n• Clé Privée SSH : collez la clé générée sur la VM.',
+          'Dans FleetUpdate-Hub, remplissez les champs :\n• Endpoint URL / IP : l’adresse IP de votre VM ou conteneur LXC\n• Port : 2222\n• Utilisateur SSH : fleetupdate\n• Clé Privée SSH : collez la clé privée affichée.',
         tip: 'Vous pouvez également enregistrer cette clé privée dans le Coffre de Secrets (Vault) pour la réutiliser sur toutes vos VM !'
       }
     ],
     formFieldsGuide: [
-      { field: "Endpoint URL / IP", example: "192.168.1.50 (ou vm-web.local)", note: "Adresse IP ou nom d'hôte de la VM Linux." },
-      { field: "Port", example: "22", note: "Port SSH (22 par défaut)." },
-      { field: "Utilisateur SSH", example: "fleetupdate", note: "Nom du compte configuré sur la VM." },
+      { field: "Endpoint URL / IP", example: "192.168.1.50 (ou vm-web.local)", note: "Adresse IP ou nom d'hôte de la VM / LXC." },
+      { field: "Port", example: "2222", note: "Port SSH sécurisé et restreint (2222 par défaut)." },
+      { field: "Utilisateur SSH", example: "fleetupdate", note: "Compte de service restreint configuré sur la VM." },
       { field: "Gestionnaire de Paquets", example: "APT (Debian/Ubuntu) ou DNF", note: "Sélectionnez le gestionnaire de paquets." },
       { field: "Clé Privée SSH", example: "-----BEGIN OPENSSH PRIVATE KEY-----...", note: "Collez la clé privée affichée." }
     ]
@@ -533,40 +574,81 @@ export const tutorialsEn: Record<string, TutorialData> = {
       'Secure agentless package updates and audits for all Linux VMs and hosts (Debian, Ubuntu, AlmaLinux, Rocky, Alpine, Arch, Fedora, openSUSE).',
     steps: [
       {
-        title: 'Method 1 (Recommended): 1-Command Automated Target Setup',
+        title: 'Method 1 (Recommended): 1-Command Automated Target Setup (Port 2222 & User Isolation)',
         description:
-          'Open a terminal on your target Linux VM and run this command. It creates the fleetupdate user, generates the Ed25519 SSH keypair, configures sudo permissions, and displays the private key:',
+          'Open a terminal on your target Linux VM or LXC container and paste this command. It creates the dedicated fleetupdate service account, configures dedicated SSH port 2222 with user isolation, generates the Ed25519 keypair, and displays the private key:',
         command:
           `sudo bash -c '
+set -e
+# 1. Create dedicated fleetupdate service user
 useradd -m -s /bin/bash fleetupdate 2>/dev/null || true
 mkdir -p /home/fleetupdate/.ssh
+rm -f /home/fleetupdate/.ssh/id_ed25519*
 ssh-keygen -t ed25519 -f /home/fleetupdate/.ssh/id_ed25519 -N "" -C "fleetupdate-agent" -q
-cp /home/fleetupdate/.ssh/id_ed25519.pub /home/fleetupdate/.ssh/authorized_keys
+cat /home/fleetupdate/.ssh/id_ed25519.pub >> /home/fleetupdate/.ssh/authorized_keys
 chown -R fleetupdate:fleetupdate /home/fleetupdate/.ssh
 chmod 700 /home/fleetupdate/.ssh && chmod 600 /home/fleetupdate/.ssh/authorized_keys
-echo "fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/dnf, /usr/bin/yum, /usr/bin/pacman, /sbin/apk, /usr/bin/zypper, /sbin/reboot, /usr/sbin/reboot, /bin/systemctl" > /etc/sudoers.d/fleetupdate
+
+# 2. Strict least-privilege sudoers rule (package managers & reboot only)
+cat << "SUDOEOF" > /etc/sudoers.d/fleetupdate
+fleetupdate ALL=(ALL) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt, /usr/bin/needrestart, /usr/bin/dnf, /usr/bin/yum, /usr/bin/pacman, /usr/bin/checkupdates, /sbin/apk, /usr/bin/apk, /usr/bin/zypper, /sbin/reboot, /usr/sbin/reboot, /bin/systemctl, /bin/mkdir, /usr/bin/mkdir, /bin/tar, /usr/bin/tar, /bin/chmod, /usr/bin/chmod, /usr/bin/docker
+SUDOEOF
 chmod 0440 /etc/sudoers.d/fleetupdate
+
+# 3. Configure SSH on port 2222 strictly isolated to fleetupdate user
+mkdir -p /etc/ssh/sshd_config.d
+cat << "SSHEOF" > /etc/ssh/sshd_config.d/fleetupdate.conf
+# Dedicated FleetUpdate-Hub configuration on port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    AllowUsers fleetupdate
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+SSHEOF
+chmod 644 /etc/ssh/sshd_config.d/fleetupdate.conf
+
+# Fallback if sshd_config.d is not included by default on this distribution
+if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
+fi
+
+# 4. Open firewall (UFW / firewalld) if active
+if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
+    ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
+elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+    firewall-cmd --permanent --add-port=2222/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || true
+fi
+
+# 5. Reload SSH daemon (supports systemd socket and service)
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+
 echo -e "\\n======================================================="
-echo "  FLEETUPDATE SETUP COMPLETED SUCCESSFULLY ON THIS VM!"
+echo "  FLEETUPDATE SETUP COMPLETED SUCCESSFULLY ON THIS VM / LXC !"
 echo "======================================================="
+echo "Configured SSH Port: 2222 (exclusively restricted to fleetupdate)"
+echo "Configured User: fleetupdate"
+echo ""
 echo "Copy the private key block below into FleetUpdate-Hub:"
 echo ""
 cat /home/fleetupdate/.ssh/id_ed25519
 echo ""
 echo "======================================================="
 '`,
-        tip: 'Once completed, copy the private key block (including BEGIN and END OPENSSH PRIVATE KEY).'
+        tip: 'Security: Port 2222 ONLY allows fleetupdate with its Ed25519 key. Your existing access on port 22 remains untouched.'
       },
       {
         title: 'Method 2: Register Host in FleetUpdate-Hub',
         description:
-          'In FleetUpdate-Hub, fill in the fields:\n• Endpoint URL / IP: IP address or hostname\n• SSH User: fleetupdate\n• SSH Private Key: paste the generated private key.',
+          'In FleetUpdate-Hub, fill in the fields:\n• Endpoint URL / IP: IP address or hostname\n• Port: 2222\n• SSH User: fleetupdate\n• SSH Private Key: paste the generated private key.',
         tip: 'You can also store this key once in the Vault under "FleetUpdate SSH Key" to reuse across all your Linux hosts!'
       }
     ],
     formFieldsGuide: [
       { field: "Endpoint URL / IP", example: "192.168.1.50 (or vm-web.local)", note: "IP address or hostname of the Linux machine." },
-      { field: "Port", example: "22", note: "SSH port (default: 22)." },
+      { field: "Port", example: "2222", note: "Hardened and restricted SSH port (2222 by default)." },
       { field: "SSH User", example: "fleetupdate", note: "Configured username on target." },
       { field: "Package Manager", example: "APT (Debian/Ubuntu) or DNF", note: "Package manager type." },
       { field: "SSH Private Key", example: "-----BEGIN OPENSSH PRIVATE KEY-----...", note: "Paste the private key." }

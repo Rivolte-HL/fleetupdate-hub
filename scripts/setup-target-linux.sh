@@ -57,4 +57,38 @@ EOF
 chmod 440 "$SUDOERS_FILE"
 echo "  [OK] Sudoers restrictions applied in $SUDOERS_FILE"
 
-echo "✅ Linux host ready for agentless SSH management by FleetUpdate-Hub!"
+# 5. Configure SSH on Port 2222 strictly isolated to fleetupdate
+SSH_CONFIG_D="/etc/ssh/sshd_config.d"
+mkdir -p "$SSH_CONFIG_D"
+cat << 'SSHEOF' > "$SSH_CONFIG_D/fleetupdate.conf"
+# Dedicated FleetUpdate-Hub configuration on port 2222
+Port 22
+Port 2222
+
+Match LocalPort 2222
+    AllowUsers fleetupdate
+    PasswordAuthentication no
+    PubkeyAuthentication yes
+SSHEOF
+chmod 644 "$SSH_CONFIG_D/fleetupdate.conf"
+
+if ! grep -q "Match LocalPort 2222" /etc/ssh/sshd_config 2>/dev/null && ! grep -q "sshd_config.d" /etc/ssh/sshd_config 2>/dev/null; then
+    echo -e "\nPort 22\nPort 2222\nMatch LocalPort 2222\n    AllowUsers fleetupdate\n    PasswordAuthentication no\n    PubkeyAuthentication yes\n" >> /etc/ssh/sshd_config
+fi
+echo "  [OK] SSH Port 2222 configured with exclusive fleetupdate user isolation"
+
+# 6. Allow Port 2222 in Firewall (UFW / Firewalld) if active
+if command -v ufw &>/dev/null && ufw status 2>/dev/null | grep -qw "active"; then
+    ufw allow 2222/tcp comment "FleetUpdate-Hub SSH" >/dev/null 2>&1 || true
+    echo "  [OK] UFW rule added for port 2222/tcp"
+elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld 2>/dev/null; then
+    firewall-cmd --permanent --add-port=2222/tcp >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || true
+    echo "  [OK] Firewalld rule added for port 2222/tcp"
+fi
+
+# 7. Reload SSH Service
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null || systemctl restart ssh.socket 2>/dev/null || service ssh restart 2>/dev/null || true
+echo "  [OK] SSH daemon reloaded"
+
+echo "✅ Linux host ready for agentless SSH management by FleetUpdate-Hub on port 2222!"

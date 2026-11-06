@@ -98,10 +98,35 @@ test('HomeAssistantSyncService - Native UpdateEntity & Zero-Trust WebSocket Test
     syncService.setMockConnection(null);
   });
 
-  await t.test('Air-Gap Watcher Lifecycle and restart', async () => {
+  await t.test('Air-Gap Watcher Lifecycle and restart with heartbeat', async () => {
     syncService.startWatcher(60000);
     await syncService.restart();
     syncService.stopWatcher();
+    assert.equal((syncService as any).wsClient, null);
+    assert.equal((syncService as any).wsHeartbeatTimer, null);
+    assert.equal((syncService as any).isWsAlive, false);
+  });
+
+  await t.test('pollOnce watchdog detects inactive or unauthenticated WebSocket and re-initializes', async () => {
+    let reconnectAttempted = false;
+    const mockClient: any = {
+      getStates: async () => []
+    };
+
+    syncService.setMockConnection({
+      client: mockClient,
+      config: { enabled: true, syncEntitiesEnabled: true }
+    });
+
+    // Mock an unauthenticated or dead wsClient
+    (syncService as any).wsClient = { readyState: 1, terminate: () => { reconnectAttempted = true; }, removeAllListeners: () => {} };
+    (syncService as any).isWsAuthenticated = false;
+
+    await syncService.pollOnce();
+
+    assert.equal(reconnectAttempted, true, 'Watchdog must terminate inactive/unauthenticated socket');
+    syncService.stopWatcher();
+    syncService.setMockConnection(null);
   });
 
   await t.test('handleNativeInstallRequest should guard against execution when allowHaTrigger is false', async () => {

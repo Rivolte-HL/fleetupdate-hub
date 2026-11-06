@@ -35,9 +35,9 @@ export class LinuxSshAdapter extends BaseServiceAdapter {
           label: 'SSH Port',
           type: 'number',
           required: false,
-          defaultValue: 22,
-          placeholder: '22',
-          description: 'SSH daemon listening port (default: 22)'
+          defaultValue: 2222,
+          placeholder: '2222',
+          description: 'SSH daemon listening port (default: 2222 as configured by setup script, or 22)'
         },
         {
           name: 'packageManager',

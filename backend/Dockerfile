@@ -11,7 +11,7 @@ RUN apk --no-cache add openssl
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm install
+RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src/
@@ -53,5 +53,9 @@ USER fleetuser
 
 EXPOSE 5000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]
+
